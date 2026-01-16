@@ -182,9 +182,46 @@ export default function ProfilePage() {
     return () => window.removeEventListener("resize", checkMobile)
   }, [])
 
+  // Check authentication on mount and when token changes
   useEffect(() => {
-    const token = localStorage.getItem("token")
-    if (!token) router.push("/login")
+    const checkAuth = () => {
+      const token = localStorage.getItem("token")
+      if (!token) {
+        router.push("/")
+        return false
+      }
+      return true
+    }
+
+    // Check on mount
+    if (!checkAuth()) {
+      return // If no token, redirect will happen
+    }
+
+    // Poll for token changes (for same-tab logout)
+    // This checks every 500ms if token still exists
+    const authCheckInterval = setInterval(() => {
+      const token = localStorage.getItem("token")
+      if (!token) {
+        clearInterval(authCheckInterval)
+        router.push("/")
+      }
+    }, 500) // Check every 500ms
+
+    // Listen for storage changes from other tabs/windows
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === "token" && !e.newValue) {
+        clearInterval(authCheckInterval)
+        router.push("/")
+      }
+    }
+
+    window.addEventListener("storage", handleStorageChange)
+
+    return () => {
+      clearInterval(authCheckInterval)
+      window.removeEventListener("storage", handleStorageChange)
+    }
   }, [router])
 
   useEffect(() => {
@@ -238,6 +275,7 @@ export default function ProfilePage() {
 
       extractCategoriesAndKafedras(enrichedOrders)
     } catch (error) {
+      // Error logging - could use logger utility here if needed
       console.error("Ma'lumotlarni olishda xatolik:", error)
       toast.error(t("common.errorFetchingData"))
     } finally {
@@ -311,14 +349,17 @@ export default function ProfilePage() {
     }
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("id")
-    localStorage.removeItem("full_name")
-    localStorage.removeItem("phone")
-    useAuthStore.getState().clearToken()
+  const handleLogout = async () => {
+    // Import logout utility
+    const { performLogout } = await import("@/lib/auth-utils")
+    
     showNotification(t("common.loggedOut"))
-    router.push("/login")
+    
+    // Perform logout with redirect to home page
+    await performLogout({
+      redirectTo: "/",
+      callServerLogout: false, // Set to true if backend supports logout endpoint
+    })
   }
 
   const confirmLogout = () => {

@@ -23,7 +23,8 @@ export default function Footer() {
     window.scrollTo(0, 0)
   }, [pathname])
 
-  if (pathname === "/login/") return <></>
+  // Hide footer on login and register pages
+  if (pathname === "/login" || pathname === "/login/" || pathname === "/register" || pathname === "/register/") return <></>
   if (!mounted) return null
   if (!isClient) return null
 

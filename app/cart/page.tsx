@@ -156,7 +156,13 @@ export default function CartPage() {
     }
     try {
       const userOrdersResponse = (await getUserOrders()) as any
-      const userOrders = userOrdersResponse.data || []
+      // Handle different response structures - ensure we get an array
+      let userOrders: any[] = []
+      if (Array.isArray(userOrdersResponse)) {
+        userOrders = userOrdersResponse
+      } else if (userOrdersResponse?.data) {
+        userOrders = Array.isArray(userOrdersResponse.data) ? userOrdersResponse.data : []
+      }
 
       // Tanlangan kitoblarni avval buyurtma qilinganmi tekshirish
       for (const selectedBookId of selectedItems) {

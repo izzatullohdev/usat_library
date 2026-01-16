@@ -72,9 +72,8 @@ interface BookItem {
   }
 }
 
-interface EnrichedBook extends BookData {
-  bookItem?: BookItem
-}
+import type { EnrichedBook } from "@/types/common"
+import type { BookData } from "@/types/index"
 
 export default function Navbar() {
   const { t, i18n } = useTranslation()
@@ -101,10 +100,33 @@ export default function Navbar() {
 
   useEffect(() => {
     const allbooks = async () => {
-      const books = (await getAllBooks()) as any
-      setbooks(books.data)
-      console.log(books.data)
-      return books
+      try {
+        const books = await getAllBooks()
+        if (books.data?.data) {
+          // Transform BookData[] to EnrichedBook[]
+          const enrichedBooks: EnrichedBook[] = books.data.data.map((item: BookData) => ({
+            id: item.Book.id,
+            name: item.Book.name,
+            author_id: item.Book.author_id,
+            year: item.Book.year,
+            page: item.Book.page,
+            books: item.Book.books,
+            book_count: item.Book.book_count,
+            description: item.Book.description,
+            image_id: item.Book.image_id,
+            createdAt: item.Book.createdAt,
+            updatedAt: item.Book.updatedAt,
+            auther_id: item.Book.auther_id,
+            Auther: item.Book.Auther,
+            image: item.Book.image,
+            bookItem: item,
+          }))
+          setbooks(enrichedBooks)
+        }
+      } catch (error) {
+        // Error handling - could use logger here if needed
+        console.error("Error fetching books:", error)
+      }
     }
     allbooks()
   }, [])
@@ -112,6 +134,8 @@ export default function Navbar() {
   // Filter books based on selected criteria
   useEffect(() => {
     const filtered = allboks.filter((book) => {
+      // Safety check: ensure book and book.name exist
+      if (!book || !book.name) return false
       const matchesSearch = book.name.toLowerCase().includes(searchTerm.toLowerCase())
       return matchesSearch
     })
@@ -209,12 +233,17 @@ export default function Navbar() {
     setTimeout(() => setNotification(null), 3000)
   }
 
-  const handleLogout = () => {
-    localStorage.removeItem("token")
-    localStorage.removeItem("id")
-    useAuthStore.getState().clearToken()
+  const handleLogout = async () => {
+    // Import logout utility
+    const { performLogout } = await import("@/lib/auth-utils")
+    
     showNotification(t("common.loggedOut"))
-    router.push("/login")
+    
+    // Perform logout with redirect to home page
+    await performLogout({
+      redirectTo: "/",
+      callServerLogout: false, // Set to true if backend supports logout endpoint
+    })
   }
 
   const confirmLogout = () => {
@@ -259,7 +288,8 @@ export default function Navbar() {
     setSearchTerm("")
   }
 
-  if (pathname === "/login/") return <></>
+  // Hide navbar on login and register pages
+  if (pathname === "/login" || pathname === "/login/" || pathname === "/register" || pathname === "/register/") return <></>
   if (!mounted) return null
   if (!isClient) return null
 

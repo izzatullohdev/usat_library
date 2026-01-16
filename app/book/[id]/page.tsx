@@ -121,7 +121,7 @@ export default function BookDetailPageClient() {
       try {
         setLoading(true)
         const bookItemsResponse = (await getBookItems()) as any
-        const bookItemsData = bookItemsResponse.data || []
+        const bookItemsData = bookItemsResponse.data?.data || []
 
         // Transform all bookItemsData into EnrichedBook structure
         const enrichedBooksList: EnrichedBook[] = bookItemsData.map((item: any) => ({

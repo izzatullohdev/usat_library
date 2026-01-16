@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 body{
-  font-family: "Comfortaa", sans-serif;
+  font-family: var(--font-comfortaa), sans-serif;
     font-optical-sizing: auto;
     font-style: normal;
     font-weight: 500;

@@ -20,72 +20,11 @@ import type { BookData } from "@/types/index"
 import NetworkError from "@/components/network-error"
 import { motion, animate, useInView } from "framer-motion"
 
-// Define the EnrichedBook interface to match the new data structure
-interface EnrichedBook {
-  id: string
-  name: string
-  author_id: string | null
-  year: number
-  page: number
-  books: number
-  book_count: number
-  description: string
-  image_id: string
-  createdAt: string
-  updatedAt: string
-  auther_id: string
-  Auther: {
-    id: string
-    name: string
-  }
-  image: {
-    id: string
-    url: string
-  }
-  bookItem: {
-    id: string
-    book_id: string
-    language_id: string
-    alphabet_id: string
-    status_id: number
-    pdf_id: string
-    createdAt: string
-    updatedAt: string
-    kafedra_id: string | null
-    PDFFile: {
-      id: string
-      file_url: string
-      original_name: string
-      file_size: number
-    }
-    BookCategoryKafedra: {
-      category_id: string
-      kafedra_id: string
-      category: {
-        id: string
-        name_uz: string
-        name_ru: string
-      }
-      kafedra: {
-        id: string
-        name_uz: string
-        name_ru: string
-      }
-    }
-    Language: {
-      id: string
-      name: string
-    }
-    Alphabet: {
-      id: string
-      name: string
-    }
-    Status: {
-      id: string
-      name: string
-    }
-  }
-}
+// Import EnrichedBook from common types
+import type { EnrichedBook } from "@/types/common"
+
+// Legacy interface definition removed - using centralized type from types/common.ts
+// interface EnrichedBook {
 
 // Global cache for main book data
 let cachedBooks: EnrichedBook[] | null = null
@@ -241,6 +180,7 @@ export default function HomePage() {
       setShowNetworkError(false)
       await fetchAllData()
     } catch (error: any) {
+      // Error logging - network errors are expected and handled gracefully
       console.error("Network error:", error)
       // Check if it's a network error
       if (
@@ -268,9 +208,9 @@ export default function HomePage() {
     } else {
       setIsLoading(true)
       try {
-        const response = (await getBookItems()) as any
-        const bookItemsData = response.data || []
-        const enrichedBooks: EnrichedBook[] = bookItemsData.map((item: any) => ({
+        const response = await getBookItems()
+        const bookItemsData = response.data?.data || []
+        const enrichedBooks: EnrichedBook[] = bookItemsData.map((item: BookData) => ({
           id: item.Book.id,
           name: item.Book.name,
           author_id: item.Book.author_id,
@@ -301,10 +241,9 @@ export default function HomePage() {
       setSwiperBooks(cachedSwiperBooks)
     } else {
       try {
-        const swiperResponse = (await getBooks()) as any
-        const parsedSwiperBooks: BookData[] = Array.isArray(swiperResponse.data)
-          ? swiperResponse.data
-          : [swiperResponse.data]
+        const swiperResponse = await getBooks()
+        const swiperBooksArray = swiperResponse.data?.data || []
+        const parsedSwiperBooks: BookData[] = Array.isArray(swiperBooksArray) ? swiperBooksArray : []
         setSwiperBooks(parsedSwiperBooks)
         cachedSwiperBooks = parsedSwiperBooks
       } catch (error) {
@@ -333,8 +272,9 @@ export default function HomePage() {
     router.push(`/book/${bookId}`)
   }
 
-  const isTokenyes = (callback: () => void) => {
-    const token = localStorage.getItem("token")
+  // Inline requireAuth function for this component
+  const requireAuth = (callback: () => void) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("token") : null
     if (!token) {
       toast.warning(t("common.loginRequired"))
       router.push("/login")
@@ -352,7 +292,10 @@ export default function HomePage() {
       return
     }
     const cart = JSON.parse(localStorage.getItem("cart") || "[]")
-    const existingBook = cart.find((item: any) => item.id === targetBook.id && item.userId === userId)
+    interface CartItem extends EnrichedBook {
+      userId: string
+    }
+    const existingBook = (cart as CartItem[]).find((item) => item.id === targetBook.id && item.userId === userId)
     if (!existingBook) {
       cart.push({ ...targetBook, userId })
       localStorage.setItem("cart", JSON.stringify(cart))
@@ -465,11 +408,11 @@ export default function HomePage() {
                 : // Haqiqiy kitoblar ko'rsatish
                   currentBooks.map((book, index) => {
                     const imageUrl = book.image?.url ? getFullImageUrl(book.image.url) : "/placeholder.svg"
-                    const isNew = isBookNew(book.bookItem.Status.id)
+                    const isNew = book.bookItem?.Status?.id ? isBookNew(book.bookItem.Status.id) : false
                     return (
                       <Card
-                        key={book.id}
-                        onClick={() => isTokenyes(() => handleCardClick(book.id))}
+                        key={`${book.id}-${index}`}
+                        onClick={() => requireAuth(() => handleCardClick(book.id))}
                         className="group hover:shadow-xl transition-all duration-200 border border-[#21466D]/10 rounded-xl cursor-pointer hover:border-[#21466D]/20 h-full flex flex-col justify-between"
                       >
                         <CardContent className="p-4 flex-grow flex flex-col max-md:p-2">
@@ -519,7 +462,7 @@ export default function HomePage() {
                               className="w-full bg-[#21466D] hover:bg-[#21466D]/90 text-white flex items-center justify-center gap-1"
                               onClick={(e) => {
                                 e.stopPropagation()
-                                isTokenyes(() => addToCart(book))
+                                requireAuth(() => addToCart(book))
                               }}
                             >
                               <ShoppingCart className="h-4 w-4 mr-2" /> {t("common.addBookToCart")}

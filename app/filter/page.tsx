@@ -16,93 +16,13 @@ import { getFullImageUrl, isBookNew } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 import MagnetButton from "@/components/Magnet"
 
-interface Category {
-  id: string
-  name_uz: string
-  name_ru: string
-  code: string
-  createdAt: string
-  updatedAt: string
-  [key: string]: any;
-}
+import type { Category, Kafedra } from "@/types/index"
+import type { EnrichedBook } from "@/types/common"
 
-interface Kafedra {
-  id: string
-  name_uz: string
-  name_ru: string
-  createdAt: string
-  updatedAt: string
-  [key: string]: any;
-}
-
-// Define the EnrichedBook interface to match the new data structure
-interface EnrichedBook {
-  id: string
-  name: string
-  author_id: string | null
-  year: number
-  page: number
-  books: number
-  book_count: number
-  description: string
-  image_id: string
-  createdAt: string
-  updatedAt: string
-  auther_id: string
-  Auther: {
-    id: string
-    name: string
-  }
-  image: {
-    id: string
-    url: string
-  }
-  bookItem: {
-    id: string
-    book_id: string
-    language_id: string
-    alphabet_id: string
-    status_id: number
-    pdf_id: string
-    createdAt: string
-    updatedAt: string
-    kafedra_id: string | null
-    PDFFile: {
-      id: string
-      file_url: string
-      original_name: string
-      file_size: number
-    }
-    BookCategoryKafedras: {
-      category_id: string
-      kafedra_id: string
-      category: {
-        [key: string]: any;
-        id: string
-        name_uz: string
-        name_ru: string
-      }
-      kafedra: {
-        [key: string]: any;
-        id: string
-        name_uz: string
-        name_ru: string
-      }
-    }[]
-    Language: {
-      id: string
-      name: string
-    }
-    Alphabet: {
-      id: string
-      name: string
-    }
-    Status: {
-      id: string
-      name: string
-    }
-  }
-}
+// Legacy interface definitions removed - using centralized types from types/index.ts and types/common.ts
+// interface Category {
+// interface Kafedra {
+// interface EnrichedBook {
 
 const FilterPage = () => {
   const { t, i18n } = useTranslation()
@@ -142,8 +62,8 @@ const FilterPage = () => {
 
         // Parse bookItems data and transform to EnrichedBook
         let parsedBookItems: EnrichedBook[] = []
-        if (bookItemsResponse.data && Array.isArray(bookItemsResponse.data)) {
-          parsedBookItems = bookItemsResponse.data.map((item: any) => ({
+        if (bookItemsResponse.data?.data && Array.isArray(bookItemsResponse.data.data)) {
+          parsedBookItems = bookItemsResponse.data.data.map((item: any) => ({
             id: item.Book.id,
             name: item.Book.name,
             author_id: item.Book.author_id,
@@ -184,6 +104,7 @@ const FilterPage = () => {
         setKafedras(parsedKafedras)
         setFilteredBooks(parsedBookItems)
       } catch (error) {
+        // Error logging - could use logger utility here if needed
         console.error("Ma'lumotlarni olishda xatolik:", error)
         toast.error(t("common.errorFetchingData"))
       } finally {
@@ -196,25 +117,34 @@ const FilterPage = () => {
 
   // Filter books when selections change
   useEffect(() => {
-    console.log("[v0] Starting filter process...")
-    console.log("[v0] Total bookItems:", bookItems.length)
-    console.log("[v0] Selected categories:", selectedCategories)
-    console.log("[v0] Selected kafedras:", selectedKafedras)
 
     let result = [...bookItems]
     setCurrentPage(1)
 
     if (selectedCategories.length > 0 || selectedKafedras.length > 0) {
       result = result.filter((book) => {
-        if (!book.bookItem?.BookCategoryKafedras || !Array.isArray(book.bookItem.BookCategoryKafedras)) {
-          console.log("[v0] Book missing BookCategoryKafedras array:", book.name)
+        const bookItem = book.bookItem
+        if (!bookItem) return false
+        
+        // Check if BookCategoryKafedras exists (for BookData type)
+        const hasBookCategoryKafedras = 'BookCategoryKafedras' in bookItem && Array.isArray((bookItem as any).BookCategoryKafedras)
+        // Check if BookCategoryKafedra exists (singular, for other type)
+        const hasBookCategoryKafedra = 'BookCategoryKafedra' in bookItem && (bookItem as any).BookCategoryKafedra
+        
+        if (!hasBookCategoryKafedras && !hasBookCategoryKafedra) {
+          return false
+        }
+        
+        const bookCategoryKafedras = hasBookCategoryKafedras 
+          ? (bookItem as any).BookCategoryKafedras 
+          : (hasBookCategoryKafedra ? [(bookItem as any).BookCategoryKafedra] : [])
+        
+        if (!Array.isArray(bookCategoryKafedras)) {
           return false
         }
 
-        const bookCategoryKafedras = book.bookItem.BookCategoryKafedras
-
         // Check if any combination in the array matches the selected filters
-        const hasMatchingCombination = bookCategoryKafedras.some((combination) => {
+        const hasMatchingCombination = bookCategoryKafedras.some((combination: { category_id?: string; kafedra_id?: string }) => {
           // If categories are selected, check if this combination matches any selected category
           const categoryMatch =
             selectedCategories.length === 0 ||
@@ -229,20 +159,10 @@ const FilterPage = () => {
           return categoryMatch && kafedraMatch
         })
 
-        if (hasMatchingCombination) {
-          console.log("[v0] Book matches filters:", book.name, {
-            combinations: bookCategoryKafedras.map((c) => ({
-              categoryId: c.category_id,
-              kafedraId: c.kafedra_id,
-            })),
-          })
-        }
 
         return hasMatchingCombination
       })
     }
-
-    console.log("[v0] Filtered results count:", result.length)
 
     if (result.length === 0 && (selectedCategories.length > 0 || selectedKafedras.length > 0)) {
       console.log("[v0] No books found matching current filters")
@@ -411,7 +331,7 @@ const FilterPage = () => {
                       const category = categories.find((c) => c.id === catId)
                       return category ? (
                         <Badge key={catId} variant="secondary" className="text-xs">
-                          {category[`name_${i18n.language.slice(0, 2)}`]}
+                          {i18n.language.startsWith('ru') ? category.name_ru : category.name_uz}
                         </Badge>
                       ) : null
                     })}
@@ -419,7 +339,7 @@ const FilterPage = () => {
                       const kafedra = kafedras.find((k) => k.id === kafId)
                       return kafedra ? (
                         <Badge key={kafId} variant="outline" className="text-xs">
-                          {kafedra[`name_${i18n.language.slice(0, 2)}`]}
+                          {i18n.language.startsWith('ru') ? kafedra.name_ru : kafedra.name_uz}
                         </Badge>
                       ) : null
                     })}
@@ -443,7 +363,7 @@ const FilterPage = () => {
                         htmlFor={`mobile-category-${category.id}`}
                         className="text-sm cursor-pointer flex-1 font-medium"
                       >
-                        {category[`name_${i18n.language.slice(0, 2)}`]}
+                        {i18n.language.startsWith('ru') ? category.name_ru : category.name_uz}
                       </label>
                     </div>
                   ))}
@@ -466,7 +386,7 @@ const FilterPage = () => {
                         htmlFor={`mobile-kafedra-${kafedra.id}`}
                         className="text-sm cursor-pointer flex-1 font-medium"
                       >
-                        {kafedra[`name_${i18n.language.slice(0, 2)}`]}
+                        {i18n.language.startsWith('ru') ? kafedra.name_ru : kafedra.name_uz}
                       </label>
                     </div>
                   ))}
@@ -505,7 +425,7 @@ const FilterPage = () => {
                 onCheckedChange={(checked) => handleCheckboxChange("category", category.id, checked as boolean)}
               />
               <label htmlFor={`category-${category.id}`} className="text-sm cursor-pointer">
-                {category[`name_${i18n.language}`]}
+                {i18n.language.startsWith('ru') ? category.name_ru : category.name_uz}
               </label>
             </div>
           ))}
@@ -522,7 +442,7 @@ const FilterPage = () => {
                 onCheckedChange={(checked) => handleCheckboxChange("kafedra", kafedra.id, checked as boolean)}
               />
               <label htmlFor={`kafedra-${kafedra.id}`} className="text-sm cursor-pointer">
-                {kafedra[`name_${i18n.language}`]}
+                {i18n.language.startsWith('ru') ? kafedra.name_ru : kafedra.name_uz}
               </label>
             </div>
           ))}
@@ -566,7 +486,7 @@ const FilterPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6 mb-8 px-4 md:px-0">
             {paginatedBooks.map((book) => {
               const imageUrl = book.image?.url ? getFullImageUrl(book.image.url) : "/placeholder.svg"
-              const isNew = isBookNew(book.bookItem.Status.id)
+              const isNew = book.bookItem?.Status?.id ? isBookNew(book.bookItem.Status.id) : false
 
               return (
                 <Card
@@ -581,7 +501,7 @@ const FilterPage = () => {
                         alt={book.name}
                         width={150}
                         height={250}
-                        className="w-full h-[600px] md:h-[300px] object-cover"
+                        className="w-full h-[200px] sm:h-[250px] md:h-[280px] lg:h-[300px]"
                       />
                       {isNew && (
                         <Badge className="absolute top-2 right-2 bg-[#ffc82a] text-[#21466D] text-xs">
@@ -610,10 +530,10 @@ const FilterPage = () => {
                         book.bookItem.BookCategoryKafedras.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
                             <Badge variant="secondary" className="text-xs bg-[#21466D]/10 text-[#21466D]">
-                              {book.bookItem.BookCategoryKafedras[0].category[`name_${i18n.language.slice(0, 2)}`]}
+                              {i18n.language.startsWith('ru') ? book.bookItem.BookCategoryKafedras[0].category.name_ru : book.bookItem.BookCategoryKafedras[0].category.name_uz}
                             </Badge>
                             <Badge variant="outline" className="text-xs border-[#21466D]/20 text-[#21466D]">
-                              {book.bookItem.BookCategoryKafedras[0].kafedra[`name_${i18n.language.slice(0, 2)}`]}
+                              {i18n.language.startsWith('ru') ? book.bookItem.BookCategoryKafedras[0].kafedra.name_ru : book.bookItem.BookCategoryKafedras[0].kafedra.name_uz}
                             </Badge>
                             {/* Show indicator if there are multiple combinations */}
                             {book.bookItem.BookCategoryKafedras.length > 1 && (

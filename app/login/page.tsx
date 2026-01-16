@@ -33,11 +33,23 @@ export default function LoginPage() {
 
   if (!isClient) return null
 
+  const handlePassportChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, '') // Faqat raqamlarni qabul qilish
+    if (value.length <= 14) {
+      setPassport(value)
+    }
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     if (!passport || !password) {
       toast.error(t("common.allFieldsRequired"))
+      setLoading(false)
+      return
+    }
+    if (passport.length !== 14) {
+      toast.error("JSHSHIR 14 ta raqamdan iborat bo'lishi kerak")
       setLoading(false)
       return
     }
@@ -48,8 +60,11 @@ export default function LoginPage() {
       setLoading(false)
       toast.success(t("common.loginSuccess"))
       router.push("/")
-    } catch (error) {
-      toast.error(t("common.loginError"))
+    } catch (error: any) {
+      // Error is already logged by error handler
+      // Show more detailed error message
+      const errorMessage = error?.response?.data?.message || error?.message || t("common.loginError")
+      toast.error(errorMessage)
       setLoading(false)
     }
   }
@@ -87,17 +102,25 @@ export default function LoginPage() {
                     transition={{ delay: 0.3, duration: 0.4 }}
                   >
                     <Label htmlFor="passport" className="block text-sm font-medium text-[#21466D]">
-                      {t("common.passportId")}
+                      {t("common.passportId")} (JSHSHIR)
                     </Label>
                     <div className="relative">
                       <User className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#ffc82a] h-5 w-5" />
                       <Input
                         id="passport"
+                        type="text"
+                        inputMode="numeric"
                         value={passport}
-                        onChange={(e) => setPassport(e.target.value)}
-                        placeholder="AB1234569"
+                        onChange={handlePassportChange}
+                        placeholder="12345678901234"
+                        maxLength={14}
                         className="w-full h-12 pl-10 pr-4 border-2 border-[#ffc82a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffc82a]/30 focus:border-[#ffc82a] bg-white text-[#21466D] placeholder-gray-400 transition-all duration-200"
                       />
+                      {passport.length > 0 && passport.length < 14 && (
+                        <span className="text-xs text-gray-500 mt-1 block">
+                          {14 - passport.length} ta raqam qoldi
+                        </span>
+                      )}
                     </div>
                   </motion.div>
                   <motion.div
@@ -153,19 +176,29 @@ export default function LoginPage() {
                   </div>
                 </motion.div>
                 <motion.div
-                  className="text-center w-full"
+                  className="text-center w-full space-y-3"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.7, duration: 0.4 }}
                 >
-                  <p className="text-sm text-gray-600 mb-3">{t("common.registrationViaBot")}</p>
-                  <motion.h1
-                    className="text-center underline text-[#21466D] hover:text-[#ffc82a] transition-all duration-200 font-bold"
-                    onClick={() => window.open("https://t.me/usat_kutubxona_bot", "_blank")}
-                    
+                  <motion.button
+                    type="button"
+                    onClick={() => router.push("/register")}
+                    className="text-center underline text-[#21466D] hover:text-[#ffc82a] transition-all duration-200 font-bold cursor-pointer block w-full"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
                   >
-                    {t("common.registerViaTelegram")}
-                  </motion.h1>
+                    {t("common.register")}
+                  </motion.button>
+                  <motion.button
+                    type="button"
+                    onClick={() => router.push("/")}
+                    className="text-center underline text-[#21466D] hover:text-[#ffc82a] transition-all duration-200 font-bold cursor-pointer block w-full"
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                  >
+                    {t("common.backToHome")}
+                  </motion.button>
                 </motion.div>
               </CardContent>
             </div>

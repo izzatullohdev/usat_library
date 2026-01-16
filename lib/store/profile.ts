@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { setStorageItem, removeStorageItem, STORAGE_KEYS } from "../storage"
 
 interface UserProfile {
   id: string
@@ -20,10 +21,10 @@ export const useProfileStore = create<ProfileState>((set) => ({
     const name = user.fullname || user.full_name || ""
     const role = user.role || "user"
 
-    localStorage.setItem("fullname", name)
-    localStorage.setItem("phone", user.phone)
-    localStorage.setItem("role", role)
-    localStorage.setItem("id", user.id)
+    setStorageItem(STORAGE_KEYS.FULLNAME, name)
+    setStorageItem(STORAGE_KEYS.PHONE, user.phone)
+    setStorageItem(STORAGE_KEYS.ROLE, role)
+    setStorageItem(STORAGE_KEYS.USER_ID, user.id)
 
     set({
       profile: {
@@ -35,10 +36,10 @@ export const useProfileStore = create<ProfileState>((set) => ({
     })
   },
   clearProfile: () => {
-    localStorage.removeItem("fullname")
-    localStorage.removeItem("phone")
-    localStorage.removeItem("role")
-    localStorage.removeItem("id")
+    removeStorageItem(STORAGE_KEYS.FULLNAME)
+    removeStorageItem(STORAGE_KEYS.PHONE)
+    removeStorageItem(STORAGE_KEYS.ROLE)
+    removeStorageItem(STORAGE_KEYS.USER_ID)
     set({ profile: null })
   }
 }))
