@@ -2,6 +2,7 @@
  * Authentication helper utilities
  */
 
+import { logger } from "./logger"
 import { getStorageItem, STORAGE_KEYS } from "./storage"
 import { useAuthStore } from "./store/auth"
 
@@ -28,7 +29,7 @@ export function requireAuth(
         options.onNotAuthenticated()
       } else {
         // This should be handled by the calling component
-        console.warn("User not authenticated")
+        logger.warn("User not authenticated")
       }
     })
     return

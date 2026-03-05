@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { getBookItems, getBooks } from "@/lib/api"
 import { getFullImageUrl, isBookNew } from "@/lib/utils"
+import { logger } from "@/lib/logger"
 import BookSwiper from "@/components/Swiper"
 import { useTranslation } from "react-i18next"
 import ScrollToTopButton from "@/components/ScrollToTop"
@@ -179,9 +180,8 @@ export default function HomePage() {
       setNetworkError(false)
       setShowNetworkError(false)
       await fetchAllData()
-    } catch (error: any) {
-      // Error logging - network errors are expected and handled gracefully
-      console.error("Network error:", error)
+    } catch (error: unknown) {
+      logger.error("Network error", error)
       // Check if it's a network error
       if (
         error.code === "NETWORK_ERROR" ||
@@ -247,7 +247,7 @@ export default function HomePage() {
         setSwiperBooks(parsedSwiperBooks)
         cachedSwiperBooks = parsedSwiperBooks
       } catch (error) {
-        console.error("Swiper kitoblarini olishda xatolik:", error)
+        logger.error("Swiper kitoblarini olishda xatolik", error)
         setSwiperBooks([])
       }
     }

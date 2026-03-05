@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { logger } from "../logger"
 import { isTokenExpired, isValidTokenFormat } from "../token-utils"
 import { getStorageItem, setStorageItem, removeStorageItem, STORAGE_KEYS } from "../storage"
 
@@ -15,13 +16,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setToken: (token: string) => {
     // Validate token format before setting
     if (!isValidTokenFormat(token)) {
-      console.warn("Invalid token format")
+      logger.warn("Invalid token format")
       return
     }
 
-    // Check if token is expired before setting
     if (isTokenExpired(token)) {
-      console.warn("Token is expired")
+      logger.warn("Token is expired")
       // Still set it, but it will be cleared on next validation check
     }
 

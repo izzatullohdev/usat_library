@@ -84,15 +84,13 @@ export async function performLogout(options?: {
           // Import dynamically to avoid circular dependencies
           const { axiosInstance } = await import("./api")
           await axiosInstance.post("/logout")
-        } catch (error) {
+        } catch {
           // Ignore errors - we'll still clear local state
-          console.warn("Server logout failed, clearing local state anyway:", error)
         }
       }
     }
-  } catch (error) {
+  } catch {
     // Ignore errors - we'll still clear local state
-    console.warn("Error during logout:", error)
   }
 
   // Clear auth state stores

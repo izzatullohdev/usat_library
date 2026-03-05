@@ -182,21 +182,54 @@ export default function CartPage() {
       }
 
       // Har bir tanlangan kitob uchun post yuboramiz
-      await Promise.all(
+      const successfulOrders: string[] = []
+      const failedOrders: Array<{ bookId: string; error: any }> = []
+
+      await Promise.allSettled(
         selectedItems.map(async (bookId) => {
-          await postUserOrder(bookId as any)
+          try {
+            await postUserOrder(bookId as any)
+            successfulOrders.push(bookId)
+          } catch (err: any) {
+            // Handle 409 Conflict (buyurtma allaqachon mavjud)
+            if (err?.response?.status === 409 || err?.statusCode === 409) {
+              const bookName = cartItems.find((item) => item.id === bookId)?.name || bookId
+              toast.warning(t("common.bookAlreadyOrdered", { bookName }))
+              // 409 xatolik - bu normal, kitob allaqachon buyurtma qilingan
+              // Savatdan olib tashlaymiz, lekin xatolik deb ko'rsatmaymiz
+              successfulOrders.push(bookId)
+            } else {
+              // Boshqa xatoliklar
+              failedOrders.push({ bookId, error: err })
+              const bookName = cartItems.find((item) => item.id === bookId)?.name || bookId
+              toast.error(`${bookName}: ${t("common.errorPlacingOrder")}`)
+            }
+          }
         }),
       )
 
-      // Savatni yangilaymiz
-      const remainingCart = cartItems.filter((item) => !selectedItems.includes(item.id))
-      setCartItems(remainingCart)
-      setSelectedItems([])
-      localStorage.setItem("cart", JSON.stringify(remainingCart))
-      window.dispatchEvent(new Event("storage"))
-      toast.success(t("common.orderPlacedSuccessfully"))
-    } catch (err) {
-      console.error("Buyurtma berishda yoki buyurtmalarni tekshirishda xatolik:", err)
+      // Muvaffaqiyatli buyurtmalarni savatdan olib tashlaymiz
+      if (successfulOrders.length > 0) {
+        const remainingCart = cartItems.filter((item) => !successfulOrders.includes(item.id))
+        setCartItems(remainingCart)
+        const remainingSelected = selectedItems.filter((id) => !successfulOrders.includes(id))
+        setSelectedItems(remainingSelected)
+        localStorage.setItem("cart", JSON.stringify(remainingCart))
+        window.dispatchEvent(new Event("storage"))
+
+        if (successfulOrders.length === selectedItems.length) {
+          toast.success(t("common.orderPlacedSuccessfully"))
+        } else if (successfulOrders.length > 0) {
+          toast.success(
+            `${successfulOrders.length} ${successfulOrders.length === 1 ? t("common.selectedBooks").slice(0, -1) : t("common.selectedBooks")} ${t("common.orderPlacedSuccessfully").toLowerCase()}`
+          )
+        }
+      }
+
+      if (successfulOrders.length === 0 && failedOrders.length > 0) {
+        // Error toasts already shown per item
+      }
+    } catch {
       toast.error(t("common.errorPlacingOrder"))
     } finally {
       setIsLoadingOrder(false)

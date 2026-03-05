@@ -54,15 +54,12 @@ export default function PWAInstallModal() {
     if (!deferredPrompt) return
     try {
       await deferredPrompt.prompt()
-      const { outcome } = await deferredPrompt.userChoice
-      if (outcome === "accepted") {
-        console.log("PWA o'rnatildi")
-      }
+      await deferredPrompt.userChoice
       setDeferredPrompt(null)
       setIsOpen(false)
       localStorage.setItem("pwa-install-modal-shown", "true")
-    } catch (error) {
-      console.error("PWA o'rnatishda xatolik:", error)
+    } catch {
+      // PWA install failed silently in production
     }
   }
 

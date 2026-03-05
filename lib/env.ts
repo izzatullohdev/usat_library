@@ -2,6 +2,8 @@
  * Environment variables validation and type-safe access
  */
 
+import { logger } from "./logger"
+
 interface Env {
   NEXT_PUBLIC_API_URL: string
 }
@@ -20,9 +22,8 @@ function validateEnv(): Env {
       "NEXT_PUBLIC_API_URL=your_api_base_url\n" +
       "Example: NEXT_PUBLIC_API_URL=http://localhost:8000/api"
 
-    // Only log in development, don't throw
     if (process.env.NODE_ENV === "development") {
-      console.warn(errorMessage)
+      logger.warn(errorMessage)
     }
   }
 
@@ -31,9 +32,7 @@ function validateEnv(): Env {
     try {
       new URL(apiUrl)
     } catch {
-      console.warn(
-        `⚠️ NEXT_PUBLIC_API_URL (${apiUrl}) does not appear to be a valid URL. This may cause issues.`
-      )
+      logger.warn("NEXT_PUBLIC_API_URL does not appear to be a valid URL")
     }
   }
 

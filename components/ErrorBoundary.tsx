@@ -1,6 +1,7 @@
 "use client"
 
 import React, { Component, ErrorInfo, ReactNode } from "react"
+import { logger } from "@/lib/logger"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertTriangle, RefreshCw, Home } from "lucide-react"
@@ -38,13 +39,7 @@ class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    // Log error to error tracking service in production
-    if (process.env.NODE_ENV === "production") {
-      // TODO: Send to error tracking service (e.g., Sentry)
-      console.error("Error caught by ErrorBoundary:", error, errorInfo)
-    } else {
-      console.error("Error caught by ErrorBoundary:", error, errorInfo)
-    }
+    logger.error("ErrorBoundary", error)
 
     this.setState({
       error,

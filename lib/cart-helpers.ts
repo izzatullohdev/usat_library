@@ -40,8 +40,7 @@ export function addToCart(book: EnrichedBook, userId: string): boolean {
     
     toast.success(t("common.bookAddedToCart") || "Book added to cart")
     return true
-  } catch (error) {
-    console.error("Error adding book to cart:", error)
+  } catch {
     toast.error(t("common.errorAddingToCart") || "Error adding book to cart")
     return false
   }
@@ -56,8 +55,7 @@ export function removeFromCart(bookId: string, userId: string): boolean {
     const newCart = cart.filter((item) => !(item.id === bookId && item.userId === userId))
     setStorageItem(STORAGE_KEYS.CART, newCart)
     return true
-  } catch (error) {
-    console.error("Error removing book from cart:", error)
+  } catch {
     return false
   }
 }
@@ -70,8 +68,8 @@ export function clearCart(userId: string): void {
     const cart = getCartItems()
     const newCart = cart.filter((item) => item.userId !== userId)
     setStorageItem(STORAGE_KEYS.CART, newCart)
-  } catch (error) {
-    console.error("Error clearing cart:", error)
+  } catch {
+    // Clear failed silently
   }
 }
 

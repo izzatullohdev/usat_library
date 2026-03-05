@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect } from "react"
+import { logger } from "@/lib/logger"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { AlertTriangle, RefreshCw } from "lucide-react"
@@ -13,8 +14,7 @@ export default function Error({
   reset: () => void
 }) {
   useEffect(() => {
-    // Log the error to an error reporting service
-    console.error("Register page error:", error)
+    logger.error("Register page error", error)
   }, [error])
 
   return (

@@ -103,9 +103,7 @@ const FilterPage = () => {
         setCategories(parsedCategories)
         setKafedras(parsedKafedras)
         setFilteredBooks(parsedBookItems)
-      } catch (error) {
-        // Error logging - could use logger utility here if needed
-        console.error("Ma'lumotlarni olishda xatolik:", error)
+      } catch {
         toast.error(t("common.errorFetchingData"))
       } finally {
         setLoading(false)
@@ -165,7 +163,6 @@ const FilterPage = () => {
     }
 
     if (result.length === 0 && (selectedCategories.length > 0 || selectedKafedras.length > 0)) {
-      console.log("[v0] No books found matching current filters")
       toast.warning(t("common.noBooksMatchingFilters"), {
         duration: 4000,
         position: "top-center",

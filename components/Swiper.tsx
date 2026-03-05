@@ -78,9 +78,7 @@ export default function Swipper({ initialBooks }: SwipperProps) {
         const booksArray = booksResponse.data?.data || []
         const parsedBooks: BookData[] = Array.isArray(booksArray) ? booksArray : []
         setBooks(parsedBooks)
-      } catch (error) {
-        // Error logging - could use logger utility here if needed
-        console.error("Ma'lumotlarni olishda xatolik:", error)
+      } catch {
         setBooks([])
       } finally {
         setLoading(false)

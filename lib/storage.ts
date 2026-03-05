@@ -2,6 +2,8 @@
  * Type-safe localStorage wrapper with SSR safety
  */
 
+import { logger } from "./logger"
+
 /**
  * Storage keys used in the application
  */
@@ -49,7 +51,7 @@ export function getStorageItem<T = string>(key: StorageKey, defaultValue?: T): T
       return item as T
     }
   } catch (error) {
-    console.error(`Error reading from localStorage key "${key}":`, error)
+    logger.error("Storage read error", error)
     return defaultValue ?? null
   }
 }
@@ -67,7 +69,7 @@ export function setStorageItem<T>(key: StorageKey, value: T): boolean {
     localStorage.setItem(key, serializedValue)
     return true
   } catch (error) {
-    console.error(`Error writing to localStorage key "${key}":`, error)
+    logger.error("Storage write error", error)
     return false
   }
 }
@@ -84,7 +86,7 @@ export function removeStorageItem(key: StorageKey): boolean {
     localStorage.removeItem(key)
     return true
   } catch (error) {
-    console.error(`Error removing from localStorage key "${key}":`, error)
+    logger.error("Storage remove error", error)
     return false
   }
 }
@@ -101,7 +103,7 @@ export function clearStorage(): boolean {
     localStorage.clear()
     return true
   } catch (error) {
-    console.error("Error clearing localStorage:", error)
+    logger.error("Storage clear error", error)
     return false
   }
 }

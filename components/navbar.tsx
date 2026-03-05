@@ -14,71 +14,17 @@ import { toast } from "sonner"
 import { usePathname, useRouter } from "next/navigation"
 import { getAllBooks } from "@/lib/api"
 import { getFullImageUrl } from "@/lib/utils"
+import { normalizeToEnrichedBooks } from "@/lib/book-normalizer"
 import { useTranslation } from "react-i18next"
 import MagnetButton from "@/components/Magnet"
-
-interface BookData {
-  id: string
-  name: string
-  author_id: string | null
-  year: number
-  page: number
-  books: number
-  book_count: number
-  description: string
-  image_id: string
-  createdAt: string
-  updatedAt: string
-  auther_id: string
-  Auther: {
-    id: string
-    name: string
-  }
-  image: {
-    id: string
-    url: string
-  }
-}
-
-interface BookItem {
-  id: string
-  book_id: string
-  language_id: string
-  alphabet_id: string
-  status_id: number
-  pdf_id: string
-  createdAt: string
-  updatedAt: string
-  kafedra_id: string | null
-  PDFFile: {
-    id: string
-    file_url: string
-    original_name: string
-    file_size: number
-  }
-  BookCategoryKafedras: {
-    category_id: string
-    kafedra_id: string
-    category: {
-      id: string
-      name_uz: string
-      name_ru: string
-    }
-    kafedra: {
-      id: string
-      name_uz: string
-      name_ru: string
-    }
-  }
-}
-
 import type { EnrichedBook } from "@/types/common"
-import type { BookData } from "@/types/index"
 
 export default function Navbar() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const { token } = useAuthStore()
   const [cartCount, setCartCount] = useState(0)
+  const [activeOrdersCount, setActiveOrdersCount] = useState(0)
+  const [unreadCount, setUnreadCount] = useState(0)
   const [mounted, setMounted] = useState(false)
   const pathname = usePathname()
   const [isClient, setIsClient] = useState(false)
@@ -93,42 +39,29 @@ export default function Navbar() {
   const [allboks, setbooks] = useState<EnrichedBook[]>([])
 
   // UI states
-  const [showSearch, setShowSearch] = useState(false)
-  const [showDropdown, setShowDropdown] = useState<string | null>(null)
+  const [, setShowSearch] = useState(false)
   const [showBooksPanel, setShowBooksPanel] = useState(false)
   const [showMobileSearch, setShowMobileSearch] = useState(false)
 
   useEffect(() => {
-    const allbooks = async () => {
+    const fetchBooks = async () => {
       try {
         const books = await getAllBooks()
-        if (books.data?.data) {
-          // Transform BookData[] to EnrichedBook[]
-          const enrichedBooks: EnrichedBook[] = books.data.data.map((item: BookData) => ({
-            id: item.Book.id,
-            name: item.Book.name,
-            author_id: item.Book.author_id,
-            year: item.Book.year,
-            page: item.Book.page,
-            books: item.Book.books,
-            book_count: item.Book.book_count,
-            description: item.Book.description,
-            image_id: item.Book.image_id,
-            createdAt: item.Book.createdAt,
-            updatedAt: item.Book.updatedAt,
-            auther_id: item.Book.auther_id,
-            Auther: item.Book.Auther,
-            image: item.Book.image,
-            bookItem: item,
-          }))
+        const res = books as { data?: unknown }
+        const rawArray = Array.isArray(res.data)
+          ? res.data
+          : Array.isArray((res.data as { data?: unknown[] })?.data)
+            ? (res.data as { data: unknown[] }).data
+            : []
+        if (rawArray.length > 0) {
+          const enrichedBooks = normalizeToEnrichedBooks(rawArray)
           setbooks(enrichedBooks)
         }
-      } catch (error) {
-        // Error handling - could use logger here if needed
-        console.error("Error fetching books:", error)
+      } catch {
+        // Fail silently; books panel will stay empty
       }
     }
-    allbooks()
+    fetchBooks()
   }, [])
 
   // Filter books based on selected criteria
@@ -159,7 +92,9 @@ export default function Navbar() {
         setSearchTerm("")
       }
     }
-
+    if (showBooksPanel) {
+      document.addEventListener("mousedown", handleClickOutside)
+    }
     return () => {
       document.removeEventListener("mousedown", handleClickOutside)
     }
@@ -184,28 +119,116 @@ export default function Navbar() {
     const userId = localStorage.getItem("id")
     if (!userId) return
 
+    // Get cart count
     const cart = JSON.parse(localStorage.getItem("cart") || "[]")
     const userCart = cart.filter((item: any) => item.userId === userId)
     setCartCount(userCart.length)
+
+    // Get active orders count
+    const activeOrders = localStorage.getItem("activeOrdersCount")
+    if (activeOrders) {
+      const count = parseInt(activeOrders, 10)
+      if (!isNaN(count) && count >= 0) {
+        setActiveOrdersCount(count)
+      }
+    } else {
+      // Initialize to 0 if not exists
+      setActiveOrdersCount(0)
+    }
+
+    // Get unread notifications count
+    const unreadNotifications = localStorage.getItem("unreadNotificationsCount")
+    if (unreadNotifications) {
+      const count = parseInt(unreadNotifications, 10)
+      if (!isNaN(count) && count >= 0) {
+        setUnreadCount(count)
+      }
+    } else {
+      // Initialize to 0 if not exists
+      setUnreadCount(0)
+    }
 
     const handleStorageChange = () => {
       const updatedCart = JSON.parse(localStorage.getItem("cart") || "[]")
       const updatedUserCart = updatedCart.filter((item: any) => item.userId === userId)
       setCartCount(updatedUserCart.length)
+
+      // Update active orders count
+      const updatedActiveOrders = localStorage.getItem("activeOrdersCount")
+      if (updatedActiveOrders) {
+        const count = parseInt(updatedActiveOrders, 10)
+        if (!isNaN(count)) {
+          setActiveOrdersCount(count)
+        }
+      }
+
+      // Update unread notifications count
+      const updatedUnread = localStorage.getItem("unreadNotificationsCount")
+      if (updatedUnread) {
+        const count = parseInt(updatedUnread, 10)
+        if (!isNaN(count)) {
+          setUnreadCount(count)
+        }
+      }
+    }
+
+    // Listen for custom events from profile page
+    const handleOrdersUpdate = () => {
+      const activeOrders = localStorage.getItem("activeOrdersCount")
+      if (activeOrders !== null) {
+        const count = parseInt(activeOrders, 10)
+        if (!isNaN(count) && count >= 0) {
+          setActiveOrdersCount(count)
+        } else {
+          setActiveOrdersCount(0)
+        }
+      } else {
+        setActiveOrdersCount(0)
+      }
+    }
+
+    const handleNotificationsUpdate = () => {
+      const unreadNotifications = localStorage.getItem("unreadNotificationsCount")
+      if (unreadNotifications !== null) {
+        const count = parseInt(unreadNotifications, 10)
+        if (!isNaN(count) && count >= 0) {
+          setUnreadCount(count)
+        } else {
+          setUnreadCount(0)
+        }
+      } else {
+        setUnreadCount(0)
+      }
     }
 
     window.addEventListener("storage", handleStorageChange)
-    return () => window.removeEventListener("storage", handleStorageChange)
-  }, [])
+    window.addEventListener("ordersUpdated", handleOrdersUpdate)
+    window.addEventListener("notificationsUpdated", handleNotificationsUpdate)
+
+    // Poll for updates every 2 seconds for better UX
+    const interval = setInterval(() => {
+      handleOrdersUpdate()
+      handleNotificationsUpdate()
+    }, 2000)
+    
+    // Also check immediately
+    handleOrdersUpdate()
+    handleNotificationsUpdate()
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange)
+      window.removeEventListener("ordersUpdated", handleOrdersUpdate)
+      window.removeEventListener("notificationsUpdated", handleNotificationsUpdate)
+      clearInterval(interval)
+    }
+  }, [pathname])
 
   useEffect(() => {
     if (pathname.includes("/book/")) {
-      // Add a small delay to ensure navigation is complete
-      const timer = setTimeout(() => {
-        clearAllFilters()
-      }, 100)
+      const timer = setTimeout(clearAllFilters, 100)
       return () => clearTimeout(timer)
     }
+    return undefined
   }, [pathname])
 
   const clearAllFilters = () => {
@@ -226,7 +249,7 @@ export default function Navbar() {
     }
   }
 
-  const [notification, setNotification] = useState<string | null>(null)
+  const [, setNotification] = useState<string | null>(null)
 
   const showNotification = (message: string) => {
     setNotification(message)
@@ -418,9 +441,14 @@ export default function Navbar() {
                     <Button
                       variant="outline"
                       style={{ border: "1px solid #21466D", backgroundColor: "transparent" }}
-                      className="rounded-full flex w-[50px] h-[50px] text-[30px] hover:text-[white] flex-col justify-center items-center hover:!bg-[#21466D] hover:border-transparent transition-all duration-300 bg-transparent"
+                      className="relative rounded-full flex w-[50px] h-[50px] text-[30px] hover:text-[white] flex-col justify-center items-center hover:!bg-[#21466D] hover:border-transparent transition-all duration-300 bg-transparent"
                     >
                       <User className="w-5 h-5" />
+                      {(activeOrdersCount > 0 || unreadCount > 0) && (
+                        <Badge className="absolute -top-2 -right-2 h-5 w-5 p-0 text-xs flex justify-center items-center primary-gradient border-transparent text-[#21466D] font-semibold z-10 min-w-[20px]">
+                          {activeOrdersCount + unreadCount > 9 ? "9+" : activeOrdersCount + unreadCount}
+                        </Badge>
+                      )}
                     </Button>
                   </MagnetButton>
                 </Link>

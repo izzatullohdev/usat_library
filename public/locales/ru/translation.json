@@ -153,7 +153,33 @@
       "4": "Возвращено",
       "5": "Отменено"
     },
-    "showMore": "Показать больше"
+    "showMore": "Показать больше",
+    "messages": "Сообщения",
+    "noMessages": "Пока нет сообщений",
+    "messageTitle": "Заголовок сообщения",
+    "messageContent": "Текст сообщения",
+    "messageDate": "Дата",
+    "markAsRead": "Отметить как прочитанное",
+    "markAllAsRead": "Отметить все как прочитанные",
+    "markAsUnread": "Отметить как непрочитанное",
+    "unreadMessages": "Непрочитанные сообщения",
+    "readMessages": "Прочитанные сообщения",
+    "allMessages": "Все сообщения",
+    "allTypes": "Все типы",
+    "newMessage": "Новое сообщение",
+    "notificationDeleted": "Сообщение удалено",
+    "errorDeletingNotification": "Ошибка при удалении сообщения",
+    "errorMarkingAsRead": "Ошибка при отметке как прочитанное",
+    "previous": "Предыдущая",
+    "next": "Следующая",
+    "page": "Страница",
+    "nothingChanged": "Ничего не изменилось",
+    "messageType": {
+      "info": "Информация",
+      "warning": "Предупреждение",
+      "success": "Успех",
+      "error": "Ошибка"
+    }
   },
   "pwa": {
     "installApp": "Установить приложение",

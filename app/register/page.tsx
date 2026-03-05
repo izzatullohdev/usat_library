@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import { CardContent, CardHeader } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { UserPlus, User, Lock, CheckCircle2, XCircle, Loader2 } from "lucide-react"
+import { UserPlus, User, Lock, CheckCircle2, XCircle, Loader2, Eye, EyeOff } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { useAuthStore } from "@/lib/store/auth"
@@ -20,6 +20,8 @@ export default function RegisterPage() {
   const [passport, setPassport] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const router = useRouter()
   const [isClient, setIsClient] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -42,12 +44,8 @@ export default function RegisterPage() {
       try {
         const { getStdBotToken } = await import("@/lib/api")
         await getStdBotToken()
-      } catch (error) {
-        // Silently fail - this should not block registration
-        // Silently fail in production, log in development
-        if (process.env.NODE_ENV === "development") {
-          console.warn("Failed to fetch STD bot token:", error)
-        }
+      } catch {
+        // Silently fail - should not block registration
       }
     }
 
@@ -76,8 +74,7 @@ export default function RegisterPage() {
             setUserExists(false)
             setStudentData(null)
           }
-        } catch (error) {
-          logger.warn("Failed to check user existence", error)
+        } catch {
           setUserExists(null)
           setStudentData(null)
         } finally {
@@ -152,54 +149,43 @@ export default function RegisterPage() {
         studentData.phone, // Use phone from API response
         3 // group_id is always 3 as specified
       )
-      
-      logger.debug("Register response received", { success: !!registerRes?.success })
-      
+
       // Check if registration was successful based on success flag
-      const isSuccess = registerRes?.success === true || registerRes?.data?.success === true
+      const isSuccess = registerRes?.success === true
       
       if (!isSuccess) {
         // Registration failed
-        const errorMessage = registerRes?.message || registerRes?.data?.message || t("common.registerError")
+        const errorMessage = registerRes?.message ?? t("common.registerError")
         throw new Error(errorMessage)
       }
       
       // Registration successful - extract user data
-      // Response structure: { success: true, message: "...", data: { id, full_name, passport_id, phone, ... } }
-      const userData = registerRes?.data || registerRes?.data?.data || null
+      // Response structure: { success, message, data: { token, user: { id, full_name, phone, ... } } }
+      const data = registerRes?.data
+      const user = data && "user" in data ? data.user : (data as { id?: string; full_name?: string; fullname?: string; phone?: string; role?: string } | null)
       
       // Try to extract token (might not be present in response)
       let token: string | undefined
-      
-      if (registerRes?.data?.token) {
-        token = registerRes.data.token
-      } else if (registerRes?.token) {
-        token = registerRes.token
-      } else if (registerRes?.data?.data?.token) {
-        token = registerRes.data.data.token
+      if (data && "token" in data && typeof data.token === "string") {
+        token = data.token
+      } else if (registerRes && "token" in registerRes && typeof (registerRes as { token?: string }).token === "string") {
+        token = (registerRes as { token: string }).token
       }
       
-      // Set token if available (some APIs don't return token on registration)
       if (token) {
         auth.setToken(token)
-        logger.debug("Token saved successfully")
-      } else {
-        logger.debug("Token not provided in registration response - user will need to login")
       }
-      
+
       // Set profile with user data from response
-      if (userData) {
+      if (user) {
         profile.setProfile({
-          id: String(userData.id || ""),
-          fullname: userData.full_name || userData.fullname || studentData.full_name,
-          full_name: userData.full_name || userData.fullname || studentData.full_name,
-          phone: userData.phone || studentData.phone,
-          role: userData.role || "student",
+          id: String(user.id ?? ""),
+          fullname: user.full_name ?? user.fullname ?? studentData.full_name,
+          full_name: user.full_name ?? user.fullname ?? studentData.full_name,
+          phone: user.phone ?? studentData.phone,
+          role: user.role ?? "student",
         })
-        logger.debug("Profile saved successfully")
       } else {
-        // Fallback to studentData if user data not in response
-        logger.warn("User data not found in response, using studentData for profile")
         profile.setProfile({
           id: "",
           fullname: studentData.full_name,
@@ -224,8 +210,6 @@ export default function RegisterPage() {
         router.push("/login")
       }, 1500)
     } catch (error: unknown) {
-      logger.error("Register error", error)
-      
       // Extract detailed error message from various error structures
       let errorMessage = t("common.registerError")
       
@@ -248,12 +232,6 @@ export default function RegisterPage() {
             axiosError.response.data.message ||
             axiosError.response.data.error ||
             `Server error (${axiosError.response.status || 500})`
-          
-          // Log full error for debugging
-          logger.error("Full error response", {
-            status: axiosError.response.status,
-            data: axiosError.response.data,
-          })
         } else if (axiosError.message) {
           errorMessage = axiosError.message
         }
@@ -366,15 +344,27 @@ export default function RegisterPage() {
                           {t("common.password")} <span className="text-red-500">*</span>
                         </Label>
                         <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#ffc82a] h-5 w-5" />
+                          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#ffc82a] h-5 w-5 z-10" />
                           <Input
                             id="password"
-                            type="password"
+                            type={showPassword ? "text" : "password"}
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
                             placeholder={t("common.enterPassword")}
-                            className="w-full h-12 pl-10 pr-4 border-2 border-[#ffc82a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffc82a]/30 focus:border-[#ffc82a] bg-white text-[#21466D] placeholder-gray-400 transition-all duration-200"
+                            className="w-full h-12 pl-10 pr-12 border-2 border-[#ffc82a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffc82a]/30 focus:border-[#ffc82a] bg-white text-[#21466D] placeholder-gray-400 transition-all duration-200"
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#21466D] transition-colors z-10"
+                            tabIndex={-1}
+                          >
+                            {showPassword ? (
+                              <EyeOff className="h-5 w-5 text-[#ffc82a]" />
+                            ) : (
+                              <Eye className="h-5 w-5 text-[#ffc82a]" />
+                            )}
+                          </button>
                         </div>
                         {password.length > 0 && password.length < 8 && (
                           <span className="text-xs text-gray-500 mt-1 block">
@@ -394,15 +384,27 @@ export default function RegisterPage() {
                           {t("common.confirmPassword")} <span className="text-red-500">*</span>
                         </Label>
                         <div className="relative">
-                          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#ffc82a] h-5 w-5" />
+                          <Lock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-[#ffc82a] h-5 w-5 z-10" />
                           <Input
                             id="confirmPassword"
-                            type="password"
+                            type={showConfirmPassword ? "text" : "password"}
                             value={confirmPassword}
                             onChange={(e) => setConfirmPassword(e.target.value)}
                             placeholder={t("common.enterConfirmPassword")}
-                            className="w-full h-12 pl-10 pr-4 border-2 border-[#ffc82a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffc82a]/30 focus:border-[#ffc82a] bg-white text-[#21466D] placeholder-gray-400 transition-all duration-200"
+                            className="w-full h-12 pl-10 pr-12 border-2 border-[#ffc82a] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#ffc82a]/30 focus:border-[#ffc82a] bg-white text-[#21466D] placeholder-gray-400 transition-all duration-200"
                           />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-500 hover:text-[#21466D] transition-colors z-10"
+                            tabIndex={-1}
+                          >
+                            {showConfirmPassword ? (
+                              <EyeOff className="h-5 w-5 text-[#ffc82a]" />
+                            ) : (
+                              <Eye className="h-5 w-5 text-[#ffc82a]" />
+                            )}
+                          </button>
                         </div>
                         {confirmPassword.length > 0 && password !== confirmPassword && (
                           <span className="text-xs text-red-500 mt-1 block">Parollar mos kelmayapti</span>

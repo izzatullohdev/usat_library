@@ -59,32 +59,27 @@ class Logger {
   }
 
   /**
-   * Warning log (always enabled)
+   * Warning log (development only; production: no console output to avoid leaking config/API info)
    */
   warn(message: string, data?: unknown): void {
-    const entry = formatLog(LogLevel.WARN, message, data)
-    console.warn("[WARN]", entry.message, data || "")
-    
-    // In production, you might want to send warnings to error tracking service
-    if (!isDevelopment) {
-      // TODO: Send to error tracking service (e.g., Sentry)
+    if (isDevelopment) {
+      const entry = formatLog(LogLevel.WARN, message, data)
+      console.warn("[WARN]", entry.message, data || "")
     }
   }
 
   /**
-   * Error log (always enabled)
+   * Error log (development: full details; production: message only to avoid leaking API/stack)
    */
   error(message: string, error?: Error | unknown): void {
-    const entry = formatLog(LogLevel.ERROR, message, error)
-    console.error("[ERROR]", entry.message, error || "")
-    
-    // In production, send errors to error tracking service
-    if (!isDevelopment) {
-      // TODO: Send to error tracking service (e.g., Sentry)
-      if (error instanceof Error) {
-        // Log error with stack trace
+    if (isDevelopment) {
+      const entry = formatLog(LogLevel.ERROR, message, error)
+      console.error("[ERROR]", entry.message, error || "")
+      if (error instanceof Error && error.stack) {
         console.error("[ERROR] Stack:", error.stack)
       }
+    } else {
+      console.error("[ERROR]", message)
     }
   }
 }

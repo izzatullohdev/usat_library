@@ -151,8 +151,7 @@ export default function BookDetailPageClient() {
           toast.error(t("common.bookNotFound"))
           router.push("/")
         }
-      } catch (err) {
-        console.error("Kitob ma'lumotlarini olishda xatolik:", err)
+      } catch {
         toast.error(t("common.errorFetchingBook"))
         router.push("/")
       } finally {

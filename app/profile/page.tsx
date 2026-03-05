@@ -19,15 +19,30 @@ import {
   Globe,
   Filter,
   Tag,
+  Bell,
+  CheckCircle2,
+  AlertCircle,
+  Info,
+  XCircle,
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { useAuthStore } from "@/lib/store/auth"
-import { getUserOrders, getBookItems } from "@/lib/api"
+import {
+  getUserOrders,
+  getBookItems,
+  getNotifications,
+  getUnreadNotificationsCount,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+  deleteNotification,
+} from "@/lib/api"
+import type { Notification } from "@/types/api"
 import Image from "next/image"
 import { getFullImageUrl } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { logger } from "@/lib/logger"
+import { Trash2, Mail } from "lucide-react"
 
 interface Order {
   id: string
@@ -166,6 +181,19 @@ export default function ProfilePage() {
 
   const [categoriesFromOrders, setCategoriesFromOrders] = useState<CategoryFromOrders[]>([])
   const [kafedrasFromOrders, setKafedrasFromOrders] = useState<KafedraFromOrders[]>([])
+  const [notifications, setNotifications] = useState<Notification[]>([])
+  const [notificationFilter, setNotificationFilter] = useState<"all" | "unread" | "read">("unread") // Default to unread messages
+  const [notificationTypeFilter, setNotificationTypeFilter] = useState<"all" | "info" | "warning" | "success" | "error">("all")
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [notificationPagination, setNotificationPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 20,
+    hasNextPage: false,
+    hasPrevPage: false,
+  })
+  const [loadingNotifications, setLoadingNotifications] = useState(false)
 
   const showNotification = (message: string) => {
     setNotification(message)
@@ -245,9 +273,23 @@ export default function ProfilePage() {
         return
       }
 
-      const [ordersData, bookItemsData] = (await Promise.all([getUserOrders(), getBookItems()])) as any
+      const [ordersData, bookItemsData] = (await Promise.all([
+        getUserOrders(),
+        getBookItems(),
+      ])) as any
 
-      const userOrders = ordersData.data.filter((order: Order) => order.user_id === userId)
+      // Handle different response structures - ensure we get an array
+      let allOrders: any[] = []
+      if (Array.isArray(ordersData)) {
+        allOrders = ordersData
+      } else if (ordersData?.data) {
+        allOrders = Array.isArray(ordersData.data) ? ordersData.data : []
+      }
+
+      const userOrders = allOrders.filter((order: Order) => order.user_id === userId)
+      
+      // Fetch notifications separately
+      fetchNotifications()
 
       if (userOrders.length > 0 && userOrders[0].User) {
         setProfile((prev) => ({
@@ -263,8 +305,17 @@ export default function ProfilePage() {
         }))
       }
 
+      // Handle bookItemsData structure
+      const bookItems = Array.isArray(bookItemsData?.data?.data)
+        ? bookItemsData.data.data
+        : Array.isArray(bookItemsData?.data)
+        ? bookItemsData.data
+        : Array.isArray(bookItemsData)
+        ? bookItemsData
+        : []
+
       const enrichedOrders: EnrichedOrder[] = userOrders.map((order: Order) => {
-        const bookItem = bookItemsData.data.find((item: BookItem) => item.book_id === order.book_id)
+        const bookItem = bookItems.find((item: BookItem) => item.book_id === order.book_id)
         return {
           ...order,
           bookDetail: bookItem?.Book,
@@ -273,10 +324,18 @@ export default function ProfilePage() {
       })
       setOrders(enrichedOrders)
 
+      // Update active orders count in localStorage for navbar
+      const activeOrders = enrichedOrders.filter((order) => order.status_id === 1 || order.status_id === 2)
+      const activeOrdersCount = activeOrders.length
+      localStorage.setItem("activeOrdersCount", activeOrdersCount.toString())
+
+      // Dispatch custom event for navbar update
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("ordersUpdated"))
+      }
+
       extractCategoriesAndKafedras(enrichedOrders)
-    } catch (error) {
-      // Error logging - could use logger utility here if needed
-      console.error("Ma'lumotlarni olishda xatolik:", error)
+    } catch {
       toast.error(t("common.errorFetchingData"))
     } finally {
       setLoading(false)
@@ -286,6 +345,13 @@ export default function ProfilePage() {
  const extractCategoriesAndKafedras = (enrichedOrders: EnrichedOrder[]) => {
   const categoryMap = new Map<string, CategoryFromOrders>()
   const kafedraMap = new Map<string, KafedraFromOrders>()
+
+  // Ensure enrichedOrders is an array
+  if (!Array.isArray(enrichedOrders)) {
+    setCategoriesFromOrders([])
+    setKafedrasFromOrders([])
+    return
+  }
 
   enrichedOrders.forEach((order) => {
     if (order.bookItem?.BookCategoryKafedras) {
@@ -325,7 +391,8 @@ export default function ProfilePage() {
     }
   })
 
-  return { categoryMap, kafedraMap }
+  setCategoriesFromOrders(Array.from(categoryMap.values()))
+  setKafedrasFromOrders(Array.from(kafedraMap.values()))
 }
 
 
@@ -392,8 +459,9 @@ export default function ProfilePage() {
     setExpandedOrders((prev) => (prev.includes(orderId) ? prev.filter((id) => id !== orderId) : [...prev, orderId]))
   }
 
-  const activeOrders = orders.filter((order) => order.status_id === 1 || order.status_id === 2)
-  const archivedOrders = orders.filter((order) => order.status_id >= 3)
+  // Safely filter orders - ensure orders is always an array
+  const activeOrders = (orders || []).filter((order) => order.status_id === 1 || order.status_id === 2)
+  const archivedOrders = (orders || []).filter((order) => order.status_id >= 3)
 
   const getStatusColor = (statusId: number) => {
     switch (statusId) {
@@ -419,6 +487,267 @@ export default function ProfilePage() {
       day: "numeric",
     })
   }
+
+  const formatDateTime = (dateString: string) => {
+    return new Date(dateString).toLocaleString(i18n.language === "uz" ? "uz-UZ" : "ru-RU", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    })
+  }
+
+  const fetchNotifications = async (page = 1, limit = 20) => {
+    try {
+      setLoadingNotifications(true)
+      const params: {
+        page: number
+        limit: number
+        is_read?: boolean
+        type?: "info" | "warning" | "success" | "error"
+      } = {
+        page,
+        limit,
+      }
+
+      if (notificationFilter === "unread") {
+        params.is_read = false
+      } else if (notificationFilter === "read") {
+        params.is_read = true
+      }
+
+      if (notificationTypeFilter !== "all") {
+        params.type = notificationTypeFilter
+      }
+
+      const response = await getNotifications(params)
+
+      // Handle different possible response structures
+      let items: Notification[] = []
+      let pagination: any = {
+        page: 1,
+        limit: 20,
+        total: 0,
+        totalPages: 1,
+      }
+      
+      if (response) {
+        // Check if response has data property
+        if (response.data) {
+          // Try response.data.items first (expected structure)
+          if (Array.isArray(response.data.items)) {
+            items = response.data.items
+          }
+          // Try response.data.data.items (nested structure)
+          else if (response.data.data && Array.isArray(response.data.data.items)) {
+            items = response.data.data.items
+          }
+          // Try response.data.data as array (direct array)
+          else if (Array.isArray(response.data.data)) {
+            items = response.data.data
+          }
+          // Try response.data as direct array
+          else if (Array.isArray(response.data)) {
+            items = response.data
+          }
+          
+          // Extract pagination
+          if (response.data.pagination) {
+            pagination = response.data.pagination
+          } else if (response.data.data?.pagination) {
+            pagination = response.data.data.pagination
+          }
+        }
+        // Try response.items (direct items)
+        else if (Array.isArray((response as any).items)) {
+          items = (response as any).items
+          pagination = (response as any).pagination || pagination
+        }
+        // Try response as direct array
+        else if (Array.isArray(response)) {
+          items = response
+        }
+      }
+      
+      setNotifications(items)
+      setNotificationPagination({
+        currentPage: pagination.page || 1,
+        totalPages: pagination.totalPages || 1,
+        totalItems: pagination.total || items.length,
+        itemsPerPage: pagination.limit || 20,
+        hasNextPage: (pagination.page || 1) < (pagination.totalPages || 1),
+        hasPrevPage: (pagination.page || 1) > 1,
+      })
+      
+      // Update unread count from fetched notifications if we're on "all" filter
+      // This ensures badge shows correct count even if unread-count endpoint fails
+      if (notificationFilter === "all") {
+        const unreadFromItems = items.filter((n: Notification) => !n.is_read).length
+        if (unreadFromItems !== unreadCount) {
+          setUnreadCount(unreadFromItems)
+          localStorage.setItem("unreadNotificationsCount", unreadFromItems.toString())
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("notificationsUpdated"))
+          }
+        }
+      }
+    } catch {
+      toast.error(t("common.errorFetchingData"))
+      
+      // Set empty state on error to prevent crashes
+      setNotifications([])
+      setNotificationPagination({
+        currentPage: 1,
+        totalPages: 1,
+        totalItems: 0,
+        itemsPerPage: 20,
+        hasNextPage: false,
+        hasPrevPage: false,
+      })
+    } finally {
+      setLoadingNotifications(false)
+    }
+  }
+
+  const fetchUnreadCount = async () => {
+    try {
+      const response = await getUnreadNotificationsCount()
+      if (response.success && response.data) {
+        // API returns unread_count (snake_case)
+        const count = response.data.unread_count || 0
+        setUnreadCount(count)
+        
+        // Update unread notifications count in localStorage for navbar
+        localStorage.setItem("unreadNotificationsCount", count.toString())
+        
+        // Dispatch custom event for navbar update
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("notificationsUpdated"))
+        }
+      }
+    } catch (error: any) {
+      // If unread-count endpoint doesn't exist (404), calculate from notifications list
+      if (error?.response?.status === 404) {
+        logger.warn("Unread count endpoint not available, calculating from notifications list")
+        try {
+          // Fetch notifications with is_read=false filter to get unread count
+          const notificationsResponse = await getNotifications({ 
+            page: 1, 
+            limit: 1000, // Get a large number to count all unread
+            is_read: false 
+          })
+          if (notificationsResponse.success && notificationsResponse.data?.items) {
+            const unreadNotifications = notificationsResponse.data.items.filter(
+              (n: Notification) => !n.is_read
+            )
+            setUnreadCount(unreadNotifications.length)
+          }
+        } catch (fallbackError) {
+          logger.error("Failed to calculate unread count from notifications", fallbackError)
+          // Set to 0 if we can't fetch notifications either
+          setUnreadCount(0)
+        }
+      } else {
+        logger.error("Failed to fetch unread count", error)
+        // For other errors, try to calculate from existing notifications state
+        if (notifications.length > 0) {
+          const unreadNotifications = notifications.filter((n) => !n.is_read)
+          const count = unreadNotifications.length
+          setUnreadCount(count)
+          
+          // Update unread notifications count in localStorage for navbar
+          localStorage.setItem("unreadNotificationsCount", count.toString())
+          
+          // Dispatch custom event for navbar update
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("notificationsUpdated"))
+          }
+        }
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === "xabarlar") {
+      fetchNotifications(notificationPagination.currentPage)
+      fetchUnreadCount()
+    }
+  }, [activeTab, notificationFilter, notificationTypeFilter, notificationPagination.currentPage])
+
+  useEffect(() => {
+    if (activeTab === "xabarlar") {
+      fetchUnreadCount()
+    }
+  }, [activeTab])
+
+  const handleMarkAsRead = async (notificationId: number) => {
+    try {
+      await markNotificationAsRead(notificationId)
+      setNotifications((prev) =>
+        prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif))
+      )
+      setUnreadCount((prev) => Math.max(0, prev - 1))
+      toast.success(t("common.markAsRead"))
+    } catch (error) {
+      logger.error("Failed to mark notification as read", error)
+      // Still update local state on error
+      setNotifications((prev) =>
+        prev.map((notif) => (notif.id === notificationId ? { ...notif, is_read: true } : notif))
+      )
+      setUnreadCount((prev) => Math.max(0, prev - 1))
+    }
+  }
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      await markAllNotificationsAsRead()
+      setNotifications((prev) => prev.map((notif) => ({ ...notif, is_read: true })))
+      setUnreadCount(0)
+      toast.success(t("common.allMarkedAsRead"))
+    } catch (error) {
+      logger.error("Failed to mark all as read", error)
+      toast.error(t("common.errorMarkingAsRead"))
+    }
+  }
+
+  const handleDeleteNotification = async (notificationId: number) => {
+    try {
+      await deleteNotification(notificationId)
+      setNotifications((prev) => prev.filter((notif) => notif.id !== notificationId))
+      toast.success(t("common.notificationDeleted"))
+    } catch (error) {
+      logger.error("Failed to delete notification", error)
+      toast.error(t("common.errorDeletingNotification"))
+    }
+  }
+
+  const getNotificationTypeIcon = (type: string) => {
+    switch (type) {
+      case "success":
+        return <CheckCircle2 className="h-5 w-5 text-green-600" />
+      case "warning":
+        return <AlertCircle className="h-5 w-5 text-yellow-600" />
+      case "error":
+        return <XCircle className="h-5 w-5 text-red-600" />
+      default:
+        return <Info className="h-5 w-5 text-blue-600" />
+    }
+  }
+
+  const getNotificationTypeColor = (type: string) => {
+    switch (type) {
+      case "success":
+        return "bg-green-50 border-green-200"
+      case "warning":
+        return "bg-yellow-50 border-yellow-200"
+      case "error":
+        return "bg-red-50 border-red-200"
+      default:
+        return "bg-blue-50 border-blue-200"
+    }
+  }
+
 
   const handleLanguageChange = (lang: string) => {
     i18n.changeLanguage(lang)
@@ -581,6 +910,7 @@ export default function ProfilePage() {
 
   const menuItems = [
     { id: "buyurtmalar", label: t("common.activeOrders"), icon: ShoppingBag, count: activeOrders.length },
+    { id: "xabarlar", label: t("common.messages"), icon: Bell, count: unreadCount },
     { id: "malumotlar", label: t("common.personalInfo"), icon: User },
   ]
 
@@ -878,6 +1208,237 @@ export default function ProfilePage() {
               </div>
             </CardContent>
           </Card>
+        )
+      case "xabarlar":
+        return (
+          <div>
+            {/* Header - Responsive */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              {isMobile && (
+                <Button variant="ghost" size="sm" onClick={() => setMobileView("menu")} className="text-[#21466D] self-start">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  {t("common.back")}
+                </Button>
+              )}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 flex-1">
+                <h2 className="text-xl sm:text-2xl font-semibold text-[#21466D] dark:text-white">
+                  {t("common.messages")} <span className="text-base sm:text-xl">({notificationPagination.totalItems})</span>
+                </h2>
+                {unreadCount > 0 && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleMarkAllAsRead}
+                    className="border-[#21466D]/20 text-[#21466D] hover:bg-[#21466D]/10 text-xs sm:text-sm self-start sm:self-auto"
+                  >
+                    <Mail className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+                    <span className="hidden sm:inline">{t("common.markAllAsRead")}</span>
+                    <span className="sm:hidden">{t("common.markAllAsRead").split(' ')[0]}</span>
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* Filter buttons - Responsive */}
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-2 mb-4">
+              <div className="flex gap-2 flex-wrap">
+                <Button
+                  variant={notificationFilter === "all" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setNotificationFilter("all")
+                    setNotificationPagination((prev) => ({ ...prev, currentPage: 1 }))
+                  }}
+                  className={`text-xs sm:text-sm ${
+                    notificationFilter === "all"
+                      ? "bg-[#21466D] text-white"
+                      : "border-[#21466D]/20 text-[#21466D] hover:bg-[#21466D]/10"
+                  }`}
+                >
+                  {t("common.allMessages")}
+                </Button>
+                <Button
+                  variant={notificationFilter === "unread" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setNotificationFilter("unread")
+                    setNotificationPagination((prev) => ({ ...prev, currentPage: 1 }))
+                  }}
+                  className={`text-xs sm:text-sm ${
+                    notificationFilter === "unread"
+                      ? "bg-[#21466D] text-white"
+                      : "border-[#21466D]/20 text-[#21466D] hover:bg-[#21466D]/10"
+                  }`}
+                >
+                  <span className="hidden sm:inline">{t("common.unreadMessages")}</span>
+                  <span className="sm:hidden">{t("common.unreadMessages").split(' ')[0]}</span>
+                  <span className="ml-1">({unreadCount})</span>
+                </Button>
+                <Button
+                  variant={notificationFilter === "read" ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => {
+                    setNotificationFilter("read")
+                    setNotificationPagination((prev) => ({ ...prev, currentPage: 1 }))
+                  }}
+                  className={`text-xs sm:text-sm ${
+                    notificationFilter === "read"
+                      ? "bg-[#21466D] text-white"
+                      : "border-[#21466D]/20 text-[#21466D] hover:bg-[#21466D]/10"
+                  }`}
+                >
+                  {t("common.readMessages")}
+                </Button>
+              </div>
+              <Select
+                value={notificationTypeFilter}
+                onValueChange={(value: "all" | "info" | "warning" | "success" | "error") => {
+                  setNotificationTypeFilter(value)
+                  setNotificationPagination((prev) => ({ ...prev, currentPage: 1 }))
+                }}
+              >
+                <SelectTrigger className="w-full sm:w-[150px] border-[#21466D]/20 text-xs sm:text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{t("common.allTypes")}</SelectItem>
+                  <SelectItem value="info">{t("common.messageType.info")}</SelectItem>
+                  <SelectItem value="warning">{t("common.messageType.warning")}</SelectItem>
+                  <SelectItem value="success">{t("common.messageType.success")}</SelectItem>
+                  <SelectItem value="error">{t("common.messageType.error")}</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Loading state */}
+            {loadingNotifications ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="text-center">
+                  <Bell className="mx-auto h-12 w-12 text-[#21466D]/40 mb-4 animate-pulse" />
+                  <p className="text-muted-foreground">{t("common.loadingData")}</p>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Notifications list */}
+                <div className="space-y-4">
+                  {notifications.length > 0 ? (
+                    notifications.map((notification) => (
+                      <Card
+                        key={notification.id}
+                        className={`border-[#21466D]/10 hover:border-[#21466D]/20 transition-all duration-200 ${
+                          !notification.is_read ? "bg-[#21466D]/5" : ""
+                        } ${getNotificationTypeColor(notification.type)}`}
+                      >
+                        <CardContent className="p-3 sm:p-4">
+                          <div className="flex items-start gap-2 sm:gap-4">
+                            <div className="mt-0.5 sm:mt-1 flex-shrink-0">
+                              <div className="h-4 w-4 sm:h-5 sm:w-5">
+                                {getNotificationTypeIcon(notification.type)}
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-2 mb-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    {!notification.is_read && (
+                                      <Badge className="bg-[#21466D] text-white text-xs px-1.5 py-0.5">
+                                        {t("common.newMessage")}
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <div
+                                    className={`text-sm sm:text-base mb-3 break-words ${
+                                      !notification.is_read ? "text-[#21466D] font-medium" : "text-muted-foreground"
+                                    } dark:text-white`}
+                                    dangerouslySetInnerHTML={{ __html: notification.message }}
+                                  />
+                                </div>
+                              </div>
+                              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-0">
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                  <Calendar className="h-3 w-3 flex-shrink-0" />
+                                  <span className="whitespace-nowrap">{formatDateTime(notification.createdAt)}</span>
+                                </div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {!notification.is_read && (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleMarkAsRead(notification.id)}
+                                      className="text-[#21466D] hover:bg-[#21466D]/10 text-xs px-2 sm:px-3 h-7 sm:h-8"
+                                    >
+                                      <span className="hidden sm:inline">{t("common.markAsRead")}</span>
+                                      <span className="sm:hidden">✓</span>
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteNotification(notification.id)}
+                                    className="text-red-600 hover:bg-red-50 text-xs px-2 sm:px-3 h-7 sm:h-8"
+                                    aria-label={t("common.notificationDeleted")}
+                                  >
+                                    <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  ) : (
+                    <Card className="border-[#21466D]/10">
+                      <CardContent className="p-8 text-center">
+                        <Bell className="mx-auto h-12 w-12 text-[#21466D]/40 mb-4" />
+                        <p className="text-muted-foreground">{t("common.noMessages")}</p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </div>
+
+                {/* Pagination - Responsive */}
+                {notificationPagination.totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 sm:gap-3 mt-4 sm:mt-6 flex-wrap">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setNotificationPagination((prev) => ({
+                          ...prev,
+                          currentPage: Math.max(1, prev.currentPage - 1),
+                        }))
+                      }
+                      disabled={!notificationPagination.hasPrevPage}
+                      className="border-[#21466D]/20 text-[#21466D] text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
+                    >
+                      <span className="hidden sm:inline">{t("common.previous")}</span>
+                      <span className="sm:hidden">←</span>
+                    </Button>
+                    <span className="text-xs sm:text-sm text-muted-foreground whitespace-nowrap">
+                      {t("common.page")} {notificationPagination.currentPage} / {notificationPagination.totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setNotificationPagination((prev) => ({
+                          ...prev,
+                          currentPage: Math.min(prev.totalPages, prev.currentPage + 1),
+                        }))
+                      }
+                      disabled={!notificationPagination.hasNextPage}
+                      className="border-[#21466D]/20 text-[#21466D] text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3"
+                    >
+                      <span className="hidden sm:inline">{t("common.next")}</span>
+                      <span className="sm:hidden">→</span>
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         )
       default:
         return null

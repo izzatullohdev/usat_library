@@ -152,7 +152,33 @@
       "4": "Topshirilgan",
       "5": "Bekor qilingan"
     },
-    "showMore": "Ko'proq ko'rsatish"
+    "showMore": "Ko'proq ko'rsatish",
+    "messages": "Xabarlar",
+    "noMessages": "Hozircha xabarlar yo'q",
+    "messageTitle": "Xabar sarlavhasi",
+    "messageContent": "Xabar matni",
+    "messageDate": "Sana",
+    "markAsRead": "O'qilgan deb belgilash",
+    "markAllAsRead": "Barchasini o'qilgan deb belgilash",
+    "markAsUnread": "O'qilmagan deb belgilash",
+    "unreadMessages": "O'qilmagan xabarlar",
+    "readMessages": "O'qilgan xabarlar",
+    "allMessages": "Barcha xabarlar",
+    "allTypes": "Barcha turlar",
+    "newMessage": "Yangi xabar",
+    "notificationDeleted": "Xabar o'chirildi",
+    "errorDeletingNotification": "Xabarni o'chirishda xatolik",
+    "errorMarkingAsRead": "O'qilgan deb belgilashda xatolik",
+    "previous": "Oldingi",
+    "next": "Keyingi",
+    "page": "Sahifa",
+    "nothingChanged": "Hech narsa o'zgarmadi",
+    "messageType": {
+      "info": "Ma'lumot",
+      "warning": "Ogohlantirish",
+      "success": "Muvaffaqiyat",
+      "error": "Xatolik"
+    }
   },
   "pwa": {
     "installApp": "Ilovani o'rnatish",

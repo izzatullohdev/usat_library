@@ -15,20 +15,17 @@ import type {
   AuthorsResponse,
   UserOrderRequest,
   UserOrderResponse,
+  NotificationsResponse,
+  UnreadCountResponse,
+  MarkAsReadResponse,
+  ReadAllResponse,
 } from "@/types/api"
 
 const apiUrl = getApiUrl()
 
-// Construct baseURL - check if API URL is configured
-if (!apiUrl || apiUrl === "your_api_url_here") {
-  if (typeof window !== "undefined") {
-    console.warn(
-      "⚠️ NEXT_PUBLIC_API_URL is not configured!\n" +
-      "Please update .env.local file with your actual API URL:\n" +
-      "NEXT_PUBLIC_API_URL=http://localhost:8000/api\n" +
-      "(Replace with your actual API base URL)"
-    )
-  }
+// BaseURL is set from env; only warn in development to avoid exposing config
+if ((!apiUrl || apiUrl === "your_api_url_here") && typeof window !== "undefined" && process.env.NODE_ENV === "development") {
+  logger.warn("NEXT_PUBLIC_API_URL is not configured. Set it in .env.local")
 }
 
 const axiosInstance = axios.create({
@@ -401,9 +398,9 @@ export const getAllBooks = async (): Promise<BooksResponse> => {
 
 
 
-// GET: /alluser-order
+// GET: /website/alluser-order
 export const getUserOrders = async (): Promise<unknown> => {
-  const res = await axiosInstance.get("/alluser-order")
+  const res = await axiosInstance.get("/website/alluser-order")
   // TODO: Define proper type for user orders response
   return res.data
 }
@@ -427,5 +424,53 @@ export const postUserOrder = async (book_id: number): Promise<UserOrderResponse>
   }
   
   const res = await axiosInstance.post<UserOrderResponse>("/website/user-order", requestPayload)
+  return res.data
+}
+
+// GET: /api/v1/notifications
+// Base URL: /api/v1/notifications
+// Note: baseURL is already set to apiUrl (e.g., http://localhost:3001/api)
+// So we use /v1/notifications (not /api/v1/notifications) to avoid duplication
+export const getNotifications = async (params?: {
+  page?: number
+  limit?: number
+  is_read?: boolean
+  type?: "info" | "warning" | "success" | "error"
+}): Promise<NotificationsResponse> => {
+  const queryParams = new URLSearchParams()
+  if (params?.page) queryParams.append("page", params.page.toString())
+  if (params?.limit) queryParams.append("limit", params.limit.toString())
+  if (params?.is_read !== undefined) queryParams.append("is_read", params.is_read.toString())
+  if (params?.type) queryParams.append("type", params.type)
+
+  const queryString = queryParams.toString()
+  // baseURL already includes /api, so we use /v1/notifications
+  const url = `/v1/notifications${queryString ? `?${queryString}` : ""}`
+  
+  const res = await axiosInstance.get<NotificationsResponse>(url)
+  return res.data
+}
+
+// GET: /api/v1/notifications/unread-count
+export const getUnreadNotificationsCount = async (): Promise<UnreadCountResponse> => {
+  const res = await axiosInstance.get<UnreadCountResponse>("/v1/notifications/unread-count")
+  return res.data
+}
+
+// PATCH: /api/v1/notifications/:id/read
+export const markNotificationAsRead = async (notificationId: number): Promise<MarkAsReadResponse> => {
+  const res = await axiosInstance.patch<MarkAsReadResponse>(`/v1/notifications/${notificationId}/read`)
+  return res.data
+}
+
+// PATCH: /api/v1/notifications/mark-all-read
+export const markAllNotificationsAsRead = async (): Promise<ReadAllResponse> => {
+  const res = await axiosInstance.patch<ReadAllResponse>("/v1/notifications/mark-all-read")
+  return res.data
+}
+
+// DELETE: /api/v1/notifications/:id
+export const deleteNotification = async (notificationId: number): Promise<{ success: boolean; message: string; statusCode?: number }> => {
+  const res = await axiosInstance.delete<{ success: boolean; message: string; statusCode?: number }>(`/v1/notifications/${notificationId}`)
   return res.data
 }
