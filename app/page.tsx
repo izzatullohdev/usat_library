@@ -19,7 +19,7 @@ import TextType from "@/components/TextType"
 import { t } from "i18next"
 import type { BookData } from "@/types/index"
 import NetworkError from "@/components/network-error"
-import { motion, animate, useInView } from "framer-motion"
+import { animate, useInView } from "framer-motion"
 
 // Import EnrichedBook from common types
 import type { EnrichedBook } from "@/types/common"
@@ -129,11 +129,10 @@ const WelcomeLoadingScreen = ({ onComplete }: { onComplete: () => void }) => {
 }
 
 export default function HomePage() {
-  const { t, i18n } = useTranslation()
+  const { t } = useTranslation()
   const router = useRouter()
   const [books, setBooks] = useState<EnrichedBook[]>([])
   const [swiperBooks, setSwiperBooks] = useState<BookData[]>([])
-  const [visibleBooks, setVisibleBooks] = useState(20)
   const [isClient, setIsClient] = useState(false)
   const [showScrollButton, setShowScrollButton] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)

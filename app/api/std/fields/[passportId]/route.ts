@@ -66,7 +66,6 @@ export async function GET(
       // Forward the response from STD API
       return NextResponse.json(data, { status })
     } catch (fetchError: unknown) {
-      const errorMessage = fetchError instanceof Error ? fetchError.message : "Unknown error"
       if (isDevelopment) {
         console.error("STD API proxy error:", fetchError)
       }

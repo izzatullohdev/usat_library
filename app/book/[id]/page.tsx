@@ -296,6 +296,7 @@ export default function BookDetailPageClient() {
       }, 4000)
       return () => clearInterval(interval)
     }
+    return undefined
   }, [slidesCount, isDragging, relatedBooks.length])
 
   // Touch/Mouse handlers for swiper

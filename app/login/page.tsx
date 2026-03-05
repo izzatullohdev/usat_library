@@ -19,7 +19,6 @@ export default function LoginPage() {
   const { t } = useTranslation()
   const [passport, setPassport] = useState("")
   const [password, setPassword] = useState("")
-  const { token } = useAuthStore()
   const router = useRouter()
   const [isClient, setIsClient] = useState(false)
   const [loading, setLoading] = useState(false)

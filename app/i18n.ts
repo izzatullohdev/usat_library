@@ -12,10 +12,10 @@ i18n
   .use(initReactI18next)
   .init({
     resources: {
-      uz: { translation: uzTranslation },
-      ru: { translation: ruTranslation },
+      uz: { translation: uzTranslation as Record<string, unknown> },
+      ru: { translation: ruTranslation as Record<string, unknown> },
     },
-    fallbackLng: "uz", // Default til
+    fallbackLng: "uz",
     debug: false,
     interpolation: {
       escapeValue: false,
@@ -24,11 +24,8 @@ i18n
       order: ["localStorage", "navigator"],
       caches: ["localStorage"],
       lookupLocalStorage: "i18nextLng",
-      // Custom lookup callback:
-      checkWhitelist: true, // Faqat supportedLanguages dan foydalanish
     },
-    whitelist: supportedLanguages, // eski versiyalarda
-    supportedLngs: supportedLanguages, // yangi versiyalarda
+    supportedLngs: supportedLanguages,
   })
 
 // Brauzer tili "en" bo‘lsa ham, `uz` qilib qo‘yish:

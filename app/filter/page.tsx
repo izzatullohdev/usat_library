@@ -218,18 +218,24 @@ const FilterPage = () => {
     }
   }
 
-  const openPDF = (book: EnrichedBook, e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (book.bookItem?.PDFFile?.file_url) {
-      window.open(book.bookItem.PDFFile.file_url, "_blank")
-    } else {
-      toast.warning(t("common.pdfNotAvailable"))
-    }
-  }
-
   const clearAllFilters = () => {
     setSelectedCategories([])
     setSelectedKafedras([])
+  }
+
+  const renderCategoryBadges = (book: EnrichedBook, lang: string) => {
+    const item = book.bookItem as Record<string, unknown> | undefined
+    const cats = item?.BookCategoryKafedras as Array<{ category: { name_uz: string; name_ru: string }; kafedra: { name_uz: string; name_ru: string } }> | undefined
+    if (!cats?.length) return null
+    const c = cats[0]
+    const isRu = lang.startsWith("ru")
+    return (
+      <div className="flex flex-wrap gap-1 mt-2">
+        <Badge variant="secondary" className="text-xs bg-[#21466D]/10 text-[#21466D]">{isRu ? c.category.name_ru : c.category.name_uz}</Badge>
+        <Badge variant="outline" className="text-xs border-[#21466D]/20 text-[#21466D]">{isRu ? c.kafedra.name_ru : c.kafedra.name_uz}</Badge>
+        {cats.length > 1 && <Badge variant="outline" className="text-xs border-gray-300 text-gray-500">+{cats.length - 1}</Badge>}
+      </div>
+    )
   }
 
   const getActiveFiltersCount = () => {
@@ -522,24 +528,7 @@ const FilterPage = () => {
                         {t("common.author")}: {book.Auther?.name || t("common.unknown")}
                       </p>
 
-                      {book.bookItem?.BookCategoryKafedras &&
-                        Array.isArray(book.bookItem.BookCategoryKafedras) &&
-                        book.bookItem.BookCategoryKafedras.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-2">
-                            <Badge variant="secondary" className="text-xs bg-[#21466D]/10 text-[#21466D]">
-                              {i18n.language.startsWith('ru') ? book.bookItem.BookCategoryKafedras[0].category.name_ru : book.bookItem.BookCategoryKafedras[0].category.name_uz}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs border-[#21466D]/20 text-[#21466D]">
-                              {i18n.language.startsWith('ru') ? book.bookItem.BookCategoryKafedras[0].kafedra.name_ru : book.bookItem.BookCategoryKafedras[0].kafedra.name_uz}
-                            </Badge>
-                            {/* Show indicator if there are multiple combinations */}
-                            {book.bookItem.BookCategoryKafedras.length > 1 && (
-                              <Badge variant="outline" className="text-xs border-gray-300 text-gray-500">
-                                +{book.bookItem.BookCategoryKafedras.length - 1}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
+                      {renderCategoryBadges(book, i18n.language)}
                     </div>
                   </CardContent>
 
@@ -547,7 +536,7 @@ const FilterPage = () => {
                     <MagnetButton className="w-full">
                       <Button
                         className="w-full bg-[#21466D] hover:bg-[#21466D]/90 text-white"
-                        onClick={(e) => isTokenyes(() => addToCart(book))}
+                        onClick={() => isTokenyes(() => addToCart(book))}
                       >
                         <ShoppingCart className="h-4 w-4 mr-2" />
                         {t("common.addBookToCart")}
