@@ -8,7 +8,7 @@ import { ShoppingCart, ArrowLeft, ArrowRight, BookOpen } from "lucide-react"
 import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { getBookItems, getBooks } from "@/lib/api"
+import { getAllBookCatalog } from "@/lib/api"
 import { getFullImageUrl, isBookNew } from "@/lib/utils"
 import { logger } from "@/lib/logger"
 import BookSwiper from "@/components/Swiper"
@@ -23,15 +23,7 @@ import { animate, useInView } from "framer-motion"
 
 // Import EnrichedBook from common types
 import type { EnrichedBook } from "@/types/common"
-
-// Legacy interface definition removed - using centralized type from types/common.ts
-// interface EnrichedBook {
-
-// Global cache for main book data
-let cachedBooks: EnrichedBook[] | null = null
-
-// Global cache for swiper book data
-let cachedSwiperBooks: BookData[] | null = null
+import { normalizeToEnrichedBooks } from "@/lib/book-normalizer"
 
 // Loading skeleton component
 const BookCardSkeleton = () => (
@@ -200,55 +192,16 @@ export default function HomePage() {
 
   // Main data fetching function
   const fetchAllData = async () => {
-    // Fetch main books
-    if (cachedBooks) {
-      setBooks(cachedBooks)
+    setIsLoading(true)
+    try {
+      const rows = await getAllBookCatalog()
+      const enrichedBooks = normalizeToEnrichedBooks(rows)
+      setBooks(enrichedBooks)
+      setSwiperBooks(rows.slice(0, 12))
+    } catch (err) {
+      throw err
+    } finally {
       setIsLoading(false)
-    } else {
-      setIsLoading(true)
-      try {
-        const response = await getBookItems()
-        const bookItemsData = response.data?.data || []
-        const enrichedBooks: EnrichedBook[] = bookItemsData.map((item: BookData) => ({
-          id: item.Book.id,
-          name: item.Book.name,
-          author_id: item.Book.author_id,
-          year: item.Book.year,
-          page: item.Book.page,
-          books: item.Book.books,
-          book_count: item.Book.book_count,
-          description: item.Book.description,
-          image_id: item.Book.image_id,
-          createdAt: item.Book.createdAt,
-          updatedAt: item.Book.updatedAt,
-          auther_id: item.Book.auther_id,
-          Auther: item.Book.Auther,
-          image: item.Book.image,
-          bookItem: item,
-        }))
-        setBooks(enrichedBooks)
-        cachedBooks = enrichedBooks
-      } catch (err) {
-        throw err // Re-throw to be caught by checkNetworkAndFetch
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    // Fetch swiper books
-    if (cachedSwiperBooks) {
-      setSwiperBooks(cachedSwiperBooks)
-    } else {
-      try {
-        const swiperResponse = await getBooks()
-        const swiperBooksArray = swiperResponse.data?.data || []
-        const parsedSwiperBooks: BookData[] = Array.isArray(swiperBooksArray) ? swiperBooksArray : []
-        setSwiperBooks(parsedSwiperBooks)
-        cachedSwiperBooks = parsedSwiperBooks
-      } catch (error) {
-        logger.error("Swiper kitoblarini olishda xatolik", error)
-        setSwiperBooks([])
-      }
     }
   }
 
@@ -407,7 +360,7 @@ export default function HomePage() {
                 : // Haqiqiy kitoblar ko'rsatish
                   currentBooks.map((book, index) => {
                     const imageUrl = book.image?.url ? getFullImageUrl(book.image.url) : "/placeholder.svg"
-                    const isNew = book.bookItem?.Status?.id ? isBookNew(book.bookItem.Status.id) : false
+                    const isNew = book.createdAt ? isBookNew(book.createdAt) : false
                     return (
                       <Card
                         key={`${book.id}-${index}`}

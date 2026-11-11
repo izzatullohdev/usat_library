@@ -26,6 +26,7 @@ import {
 import { toast } from "sonner"
 import Image from "next/image"
 import { getBookItems } from "@/lib/api"
+import { normalizeToEnrichedBooks } from "@/lib/book-normalizer"
 import { getFullImageUrl } from "@/lib/utils"
 import { useMediaQuery } from "@/lib/hooks/useMediaQuery"
 import { useTranslation } from "react-i18next"
@@ -120,37 +121,25 @@ export default function BookDetailPageClient() {
     const fetchBookData = async () => {
       try {
         setLoading(true)
-        const bookItemsResponse = (await getBookItems()) as any
-        const bookItemsData = bookItemsResponse.data?.data || []
+        const ownResponse = await getBookItems({ bookId, limit: 20 })
+        const ownBooks = normalizeToEnrichedBooks(ownResponse.data?.data ?? []) as EnrichedBook[]
+        const currentBook = ownBooks.find((item) => item.id === String(bookId)) ?? ownBooks[0]
 
-        // Transform all bookItemsData into EnrichedBook structure
-        const enrichedBooksList: EnrichedBook[] = bookItemsData.map((item: any) => ({
-          id: item.Book.id,
-          name: item.Book.name,
-          author_id: item.Book.author_id,
-          year: item.Book.year,
-          page: item.Book.page,
-          books: item.Book.books,
-          book_count: item.Book.book_count,
-          description: item.Book.description,
-          image_id: item.Book.image_id,
-          createdAt: item.Book.createdAt,
-          updatedAt: item.Book.updatedAt,
-          auther_id: item.Book.auther_id,
-          Auther: item.Book.Auther,
-          image: item.Book.image,
-          bookItem: item, // Keep the original bookItem nested
-        }))
-        setAllEnrichedBooks(enrichedBooksList) // Store all for related books
-
-        // Find the current book
-        const currentBook = enrichedBooksList.find((b) => b.id === bookId)
-        if (currentBook) {
-          setBook(currentBook)
-        } else {
+        if (!currentBook) {
           toast.error(t("common.bookNotFound"))
           router.push("/")
+          return
         }
+
+        const firstLink = currentBook.bookItem?.BookCategoryKafedras?.[0]
+        const categoryId = firstLink?.category?.id ?? firstLink?.category_id
+        const relatedResponse = await getBookItems({
+          categoryId: categoryId ? String(categoryId) : undefined,
+          limit: 24,
+        })
+        const relatedBooks = normalizeToEnrichedBooks(relatedResponse.data?.data ?? []) as EnrichedBook[]
+        setAllEnrichedBooks(relatedBooks.length > 0 ? relatedBooks : ownBooks)
+        setBook(currentBook)
       } catch {
         toast.error(t("common.errorFetchingBook"))
         router.push("/")

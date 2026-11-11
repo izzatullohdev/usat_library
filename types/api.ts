@@ -82,12 +82,14 @@ export interface LoginResponse {
  * Register request payload
  */
 export interface RegisterRequest {
+  first_name: string
+  last_name: string
   passport_id: string
-  password: string
-  fullname: string
   phone: string
-  direction?: string
-  group?: string
+  study_group: string
+  direction: string
+  password: string
+  confirm_password: string
 }
 
 /**

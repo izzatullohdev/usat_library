@@ -257,8 +257,8 @@ export default function ProfilePage() {
     setProfile({
       fullname: localStorage.getItem("fullname") || "",
       phone: localStorage.getItem("phone") || "",
-      direction: "",
-      group: "",
+      direction: localStorage.getItem("direction") || "",
+      group: localStorage.getItem("study_group") || "",
     })
     fetchData()
     setCurrentLanguage(i18n.language)
@@ -922,6 +922,11 @@ export default function ProfilePage() {
         </div>
         <h2 className="text-xl font-semibold text-[#21466D]">{profile.fullname || t("common.profile")}</h2>
         <p className="text-sm text-muted-foreground">{profile.phone}</p>
+        {(profile.group || profile.direction) && (
+          <p className="text-sm text-[#21466D]/80">
+            {[profile.group, profile.direction].filter(Boolean).join(" · ")}
+          </p>
+        )}
       </div>
       {menuItems.map((item) => {
         const Icon = item.icon
@@ -1171,6 +1176,28 @@ export default function ProfilePage() {
                     id="phone"
                     value={profile.phone}
                     onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
+                    className="border-[#21466D]/20 focus:border-[#21466D] focus:ring-[#21466D]/20"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="studyGroup" className="text-[#21466D] dark:text-white font-medium">
+                    {t("common.group")}
+                  </Label>
+                  <Input
+                    disabled
+                    id="studyGroup"
+                    value={profile.group}
+                    className="border-[#21466D]/20 focus:border-[#21466D] focus:ring-[#21466D]/20"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="direction" className="text-[#21466D] dark:text-white font-medium">
+                    {t("common.direction")}
+                  </Label>
+                  <Input
+                    disabled
+                    id="direction"
+                    value={profile.direction}
                     className="border-[#21466D]/20 focus:border-[#21466D] focus:ring-[#21466D]/20"
                   />
                 </div>

@@ -7,6 +7,7 @@ import { logger } from "./logger"
 import type {
   LoginRequest,
   LoginResponse,
+  RegisterRequest,
   RegisterResponse,
   BooksResponse,
   BookItemsResponse,
@@ -20,6 +21,7 @@ import type {
   MarkAsReadResponse,
   ReadAllResponse,
 } from "@/types/api"
+import type { BookData } from "@/types/index"
 
 const apiUrl = getApiUrl()
 
@@ -118,245 +120,15 @@ export const login = async (passport_id: string, password: string): Promise<Logi
   return res.data
 }
 
-// POST: /register
-export const register = async (
-  passport_id: string,
-  password: string,
-  fullname: string,
-  phone: string,
-  group_id: number = 3
-): Promise<RegisterResponse> => {
-  const requestPayload = {
-    passport_id,
-    password,
-    full_name: fullname,
-    phone,
-    group_id,
-  }
-  
-  logger.debug("Register request", { passport_id: requestPayload.passport_id, group_id: requestPayload.group_id })
-  
-  const res = await axiosInstance.post<RegisterResponse>("/website/register", requestPayload)
-  
+// POST: /website/register — tashqi tekshiruvsiz, talaba o'zi to'ldiradi
+export const register = async (payload: RegisterRequest): Promise<RegisterResponse> => {
+  logger.debug("Register request", { passport_id: payload.passport_id })
+
+  const res = await axiosInstance.post<RegisterResponse>("/website/register", payload)
+
   logger.debug("Register response", { success: !!res.data?.success })
-  
+
   return res.data
-}
-
-/**
- * Get telegram bot token from STD API
- * This is used for telegram bot operations
- */
-export interface StdBotTokenResponse {
-  access_token: string
-  refresh_token: string
-  token_type: string
-}
-
-export const getStdBotToken = async (): Promise<StdBotTokenResponse> => {
-  try {
-    // Use separate axios instance for STD API (different base URL)
-    const stdAxiosInstance = axios.create({
-      baseURL: "http://std-back.usat-ai-lab.uz/api/v1",
-      headers: {
-        "Content-Type": "application/json",
-        accept: "application/json",
-      },
-      timeout: 10000,
-    })
-
-    const response = await stdAxiosInstance.post<StdBotTokenResponse>("/auth/login", {
-      username: "telegram_bot",
-      password: "telegram_bot123",
-    })
-
-    // Save tokens to localStorage
-    if (typeof window !== "undefined" && response.data) {
-      const { setStorageItem, STORAGE_KEYS } = await import("./storage")
-      setStorageItem(STORAGE_KEYS.STD_TOKEN, response.data.access_token)
-      setStorageItem(STORAGE_KEYS.STD_REFRESH, response.data.refresh_token)
-    }
-
-    return response.data
-  } catch (error: any) {
-    logger.error("Failed to get STD bot token", error)
-    // Return error but don't throw - this should not block registration
-    throw error
-  }
-}
-
-/**
- * Student data structure from STD API
- */
-export interface StdStudentResponse {
-  id: number
-  full_name: string
-  pinfl: string
-  phone: string
-  group_id: number
-  type_id: number
-  group: {
-    title: string
-    is_active: boolean
-    course: number
-    field_id: number
-    learning_type_id: number
-    id: number
-    field: {
-      title: string
-      id: number
-      created_at: string
-    }
-    learning_type: {
-      title: string
-      id: number
-      created_at: string
-    }
-    created_at: string
-    updated_at: string
-  }
-  student_type: {
-    title: string
-    id: number
-    created_at: string
-  }
-  created_at: string
-  updated_at: string
-}
-
-/**
- * Check if user exists in STD API by passport ID and get student data
- * @param passportId - User's passport ID (14 digits)
- * @returns Student data if exists, null otherwise
- */
-export const checkStdUserExists = async (passportId: string): Promise<StdStudentResponse | null> => {
-  try {
-    if (!passportId || passportId.length !== 14) {
-      return null
-    }
-
-    // Get STD token from localStorage
-    if (typeof window === "undefined") {
-      return null
-    }
-
-    const { getStorageItem, STORAGE_KEYS } = await import("./storage")
-    let stdToken = getStorageItem<string>(STORAGE_KEYS.STD_TOKEN)
-
-    if (!stdToken) {
-      // Try to get token first
-      try {
-        await getStdBotToken()
-        stdToken = getStorageItem<string>(STORAGE_KEYS.STD_TOKEN)
-      } catch (error) {
-        logger.warn("Failed to get STD bot token", error)
-        return null
-      }
-      
-      if (!stdToken) {
-        logger.warn("STD token not available after fetch attempt")
-        return null
-      }
-    }
-
-    // Validate token format (should be a non-empty string)
-    if (!stdToken || typeof stdToken !== "string" || stdToken.trim() === "") {
-      logger.warn("Invalid STD token format")
-      // Try to refresh token
-      try {
-        await getStdBotToken()
-        stdToken = getStorageItem<string>(STORAGE_KEYS.STD_TOKEN)
-        if (!stdToken) {
-          return null
-        }
-      } catch (error) {
-        logger.warn("Failed to refresh STD token", error)
-        return null
-      }
-    }
-
-    // Use Next.js API route as proxy to avoid CORS issues
-    // This calls our internal API route which then proxies to STD API
-    // Create a simple axios instance without baseURL for internal Next.js routes
-    const internalAxios = axios.create({
-      baseURL: typeof window !== "undefined" ? window.location.origin : "",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      timeout: 10000,
-    })
-
-    // Remove trailing slash from URL
-    const url = `/api/std/fields/${passportId}`.replace(/\/+$/, "")
-    
-    const response = await internalAxios.get<StdStudentResponse>(url, {
-      headers: {
-        Authorization: `Bearer ${stdToken}`,
-      },
-    })
-    
-    // If response is successful (200-299), return student data
-    if (response.status >= 200 && response.status < 300) {
-      return response.data
-    }
-    return null
-  } catch (error: unknown) {
-    const axiosError = error as {
-      response?: { status: number; data?: unknown }
-      message?: string
-      code?: string
-    }
-    const status = axiosError?.response?.status
-    
-    // 404 means user doesn't exist
-    if (status === 404) {
-      return null
-    }
-    
-    // 403 might mean user doesn't exist or token doesn't have permission
-    // In this case, try to refresh token and retry once
-    if (status === 403 || status === 401) {
-      try {
-        const { getStorageItem, STORAGE_KEYS } = await import("./storage")
-        // Try refreshing token
-        await getStdBotToken()
-        const newToken = getStorageItem<string>(STORAGE_KEYS.STD_TOKEN)
-        
-        if (newToken) {
-          // Retry once with new token
-          const internalAxios = axios.create({
-            baseURL: typeof window !== "undefined" ? window.location.origin : "",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            timeout: 10000,
-          })
-          
-          // Remove trailing slash from URL
-          const retryUrl = `/api/std/fields/${passportId}`.replace(/\/+$/, "")
-          
-          const retryResponse = await internalAxios.get<StdStudentResponse>(retryUrl, {
-            headers: {
-              Authorization: `Bearer ${newToken}`,
-            },
-          })
-          
-          if (retryResponse.status >= 200 && retryResponse.status < 300) {
-            return retryResponse.data
-          }
-        }
-      } catch (retryError) {
-        logger.warn("Failed to retry with refreshed token", retryError)
-      }
-      
-      // If retry fails, treat as user not found (403 could mean no permission or user doesn't exist)
-      return null
-    }
-    
-    // Other errors - log but don't throw
-    logger.warn("Failed to check STD user existence", error)
-    return null
-  }
 }
 
 // GET: /website/authers
@@ -377,23 +149,59 @@ export const getKafedras = async () => {
   return res
 }
 
+type BookCatalogParams = {
+  page?: number
+  limit?: number
+  search?: string
+  categoryId?: string
+  kafedraId?: string
+  bookId?: string
+}
+
+function catalogQuery(params?: BookCatalogParams) {
+  return {
+    page: params?.page ?? 1,
+    limit: params?.limit ?? 20,
+    ...(params?.search ? { search: params.search } : {}),
+    ...(params?.categoryId ? { category_id: params.categoryId } : {}),
+    ...(params?.kafedraId ? { kafedra_id: params.kafedraId } : {}),
+    ...(params?.bookId ? { book_id: params.bookId } : {}),
+  }
+}
+
 // GET: /book-items
-export const getBookItems = async (): Promise<BookItemsResponse> => {
-  const res = await axiosInstance.get<BookItemsResponse>("/book-items")
+export const getBookItems = async (params?: BookCatalogParams): Promise<BookItemsResponse> => {
+  const res = await axiosInstance.get<BookItemsResponse>("/book-items", { params: catalogQuery(params) })
   return res.data
 }
 
+const CATALOG_PAGE_LIMIT = 100
+const CATALOG_MAX_PAGES = 10
+
+export const getAllBookCatalog = async (params?: Omit<BookCatalogParams, "page" | "limit">): Promise<BookData[]> => {
+  const items: BookData[] = []
+  let page = 1
+
+  while (page <= CATALOG_MAX_PAGES) {
+    const response = await getBookItems({ ...params, page, limit: CATALOG_PAGE_LIMIT })
+    const rows = response.data?.data ?? []
+    items.push(...rows)
+    if (!response.data?.pagination?.hasNext) break
+    page += 1
+  }
+
+  return items
+}
+
 export const getBooks = async (): Promise<BooksResponse> => {
-  const res = await axiosInstance.get<BooksResponse>("/book-items")
-  return res.data
+  return getBookItems({ limit: 12 })
 }
 
 
 
 // GET: /books (using /book-items endpoint as /books doesn't exist)
 export const getAllBooks = async (): Promise<BooksResponse> => {
-  const res = await axiosInstance.get<BooksResponse>("/book-items")
-  return res.data
+  return getBookItems({ limit: 100 })
 }
 
 

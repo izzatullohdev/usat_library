@@ -11,10 +11,11 @@ import Image from "next/image"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { Pagination, PaginationContent, PaginationItem, PaginationLink } from "@/components/ui/pagination"
-import { getBookItems, getCategories, getKafedras } from "@/lib/api" // Removed getAllBooks
+import { getAllBookCatalog, getCategories, getKafedras } from "@/lib/api"
 import { getFullImageUrl, isBookNew } from "@/lib/utils"
 import { useTranslation } from "react-i18next"
 import MagnetButton from "@/components/Magnet"
+import { normalizeToEnrichedBooks } from "@/lib/book-normalizer"
 
 import type { Category, Kafedra } from "@/types/index"
 import type { EnrichedBook } from "@/types/common"
@@ -54,33 +55,13 @@ const FilterPage = () => {
       try {
         setLoading(true)
         // Fetch all data in parallel
-        const [bookItemsResponse, categoriesData, kafedrasData] = (await Promise.all([
-          getBookItems(), // Only call getBookItems
+        const [catalogRows, categoriesData, kafedrasData] = (await Promise.all([
+          getAllBookCatalog(),
           getCategories(),
           getKafedras(),
         ])) as any
 
-        // Parse bookItems data and transform to EnrichedBook
-        let parsedBookItems: EnrichedBook[] = []
-        if (bookItemsResponse.data?.data && Array.isArray(bookItemsResponse.data.data)) {
-          parsedBookItems = bookItemsResponse.data.data.map((item: any) => ({
-            id: item.Book.id,
-            name: item.Book.name,
-            author_id: item.Book.author_id,
-            year: item.Book.year,
-            page: item.Book.page,
-            books: item.Book.books,
-            book_count: item.Book.book_count,
-            description: item.Book.description,
-            image_id: item.Book.image_id,
-            createdAt: item.Book.createdAt,
-            updatedAt: item.Book.updatedAt,
-            auther_id: item.Book.auther_id,
-            Auther: item.Book.Auther,
-            image: item.Book.image,
-            bookItem: item, // Keep the original bookItem nested
-          }))
-        }
+        const parsedBookItems = normalizeToEnrichedBooks(catalogRows)
 
         // Parse categories data
         let parsedCategories: Category[] = []
@@ -133,27 +114,24 @@ const FilterPage = () => {
           return false
         }
         
-        const bookCategoryKafedras = hasBookCategoryKafedras 
-          ? (bookItem as any).BookCategoryKafedras 
+        const bookCategoryKafedras = hasBookCategoryKafedras
+          ? (bookItem as any).BookCategoryKafedras
           : (hasBookCategoryKafedra ? [(bookItem as any).BookCategoryKafedra] : [])
-        
+
         if (!Array.isArray(bookCategoryKafedras)) {
           return false
         }
 
-        // Check if any combination in the array matches the selected filters
-        const hasMatchingCombination = bookCategoryKafedras.some((combination: { category_id?: string; kafedra_id?: string }) => {
-          // If categories are selected, check if this combination matches any selected category
-          const categoryMatch =
-            selectedCategories.length === 0 ||
-            (combination.category_id && selectedCategories.includes(combination.category_id))
-
-          // If kafedras are selected, check if this combination matches any selected kafedra
-          const kafedraMatch =
-            selectedKafedras.length === 0 ||
-            (combination.kafedra_id && selectedKafedras.includes(combination.kafedra_id))
-
-          // This combination must match both category and kafedra filters (if they are applied)
+        const hasMatchingCombination = bookCategoryKafedras.some((combination: {
+          category_id?: string | number
+          kafedra_id?: string | number
+          category?: { id?: string | number }
+          kafedra?: { id?: string | number }
+        }) => {
+          const categoryId = String(combination.category_id ?? combination.category?.id ?? "")
+          const kafedraId = String(combination.kafedra_id ?? combination.kafedra?.id ?? "")
+          const categoryMatch = selectedCategories.length === 0 || selectedCategories.map(String).includes(categoryId)
+          const kafedraMatch = selectedKafedras.length === 0 || selectedKafedras.map(String).includes(kafedraId)
           return categoryMatch && kafedraMatch
         })
 
@@ -489,7 +467,7 @@ const FilterPage = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4 md:gap-6 mb-8 px-4 md:px-0">
             {paginatedBooks.map((book) => {
               const imageUrl = book.image?.url ? getFullImageUrl(book.image.url) : "/placeholder.svg"
-              const isNew = book.bookItem?.Status?.id ? isBookNew(book.bookItem.Status.id) : false
+              const isNew = book.createdAt ? isBookNew(book.createdAt) : false
 
               return (
                 <Card

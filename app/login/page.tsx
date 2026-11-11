@@ -74,7 +74,7 @@ export default function LoginPage() {
       <div className="container mx-auto px-4 py-8 flex justify-center items-center min-h-screen">
         <div className="w-full flex items-center justify-center gap-8">
           <motion.div
-            className="w-1/2 max-md:w-full lg:w-1/2" // Original width class
+            className="w-[min(100%,640px)]"
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}

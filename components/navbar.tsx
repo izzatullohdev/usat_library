@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { useAuthStore } from "@/lib/store/auth"
 import { toast } from "sonner"
 import { usePathname, useRouter } from "next/navigation"
-import { getAllBooks } from "@/lib/api"
+import { getBookItems } from "@/lib/api"
 import { getFullImageUrl } from "@/lib/utils"
 import { normalizeToEnrichedBooks } from "@/lib/book-normalizer"
 import { useTranslation } from "react-i18next"
@@ -32,56 +32,32 @@ export default function Navbar() {
 
   // Filter states
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedDirections, setSelectedDirections] = useState<string[]>([])
-  const [selectedDepartments, setSelectedDepartments] = useState<string[]>([])
-  const [selectedTopics, setSelectedTopics] = useState<string[]>([])
-  const [filteredBooks, setFilteredBooks] = useState<EnrichedBook[]>([])
-  const [allboks, setbooks] = useState<EnrichedBook[]>([])
-
-  // UI states
   const [, setShowSearch] = useState(false)
   const [showBooksPanel, setShowBooksPanel] = useState(false)
   const [showMobileSearch, setShowMobileSearch] = useState(false)
+  const [filteredBooks, setFilteredBooks] = useState<EnrichedBook[]>([])
 
   useEffect(() => {
-    const fetchBooks = async () => {
-      try {
-        const books = await getAllBooks()
-        const res = books as { data?: unknown }
-        const rawArray = Array.isArray(res.data)
-          ? res.data
-          : Array.isArray((res.data as { data?: unknown[] })?.data)
-            ? (res.data as { data: unknown[] }).data
-            : []
-        if (rawArray.length > 0) {
-          const enrichedBooks = normalizeToEnrichedBooks(rawArray)
-          setbooks(enrichedBooks)
-        }
-      } catch {
-        // Fail silently; books panel will stay empty
-      }
+    const term = searchTerm.trim()
+    if (term.length < 2) {
+      setFilteredBooks([])
+      setShowBooksPanel(false)
+      return
     }
-    fetchBooks()
-  }, [])
 
-  // Filter books based on selected criteria
-  useEffect(() => {
-    const filtered = allboks.filter((book) => {
-      // Safety check: ensure book and book.name exist
-      if (!book || !book.name) return false
-      const matchesSearch = book.name.toLowerCase().includes(searchTerm.toLowerCase())
-      return matchesSearch
-    })
-    setFilteredBooks(filtered)
+    const timer = window.setTimeout(async () => {
+      try {
+        const books = await getBookItems({ search: term, limit: 20 })
+        setFilteredBooks(normalizeToEnrichedBooks(books.data?.data ?? []))
+        setShowBooksPanel(true)
+      } catch {
+        setFilteredBooks([])
+        setShowBooksPanel(true)
+      }
+    }, 300)
 
-    // Show books panel if there are any filters applied
-    const hasFilters =
-      Boolean(searchTerm) ||
-      selectedDirections.length > 0 ||
-      selectedDepartments.length > 0 ||
-      selectedTopics.length > 0
-    setShowBooksPanel(hasFilters)
-  }, [searchTerm, selectedDirections, selectedDepartments, selectedTopics, allboks])
+    return () => window.clearTimeout(timer)
+  }, [searchTerm])
 
   const panelRef = useRef<HTMLDivElement>(null)
 
@@ -233,9 +209,6 @@ export default function Navbar() {
 
   const clearAllFilters = () => {
     setSearchTerm("")
-    setSelectedDirections([])
-    setSelectedDepartments([])
-    setSelectedTopics([])
     setShowBooksPanel(false)
     setShowSearch(false)
     setShowMobileSearch(false)

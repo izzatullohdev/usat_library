@@ -12,13 +12,13 @@ export const STORAGE_KEYS = {
   USER_ID: "id",
   FULLNAME: "fullname",
   PHONE: "phone",
+  STUDY_GROUP: "study_group",
+  DIRECTION: "direction",
   ROLE: "role",
   CART: "cart",
   LANGUAGE: "i18nextLng",
   HAS_SEEN_WELCOME: "hasSeenWelcome",
   PWA_INSTALL_MODAL_SHOWN: "pwa-install-modal-shown",
-  STD_TOKEN: "std_token",
-  STD_REFRESH: "std_refresh",
 } as const
 
 type StorageKey = typeof STORAGE_KEYS[keyof typeof STORAGE_KEYS]
@@ -116,6 +116,8 @@ export function clearAuthStorage(): void {
   removeStorageItem(STORAGE_KEYS.USER_ID)
   removeStorageItem(STORAGE_KEYS.FULLNAME)
   removeStorageItem(STORAGE_KEYS.PHONE)
+  removeStorageItem(STORAGE_KEYS.STUDY_GROUP)
+  removeStorageItem(STORAGE_KEYS.DIRECTION)
   removeStorageItem(STORAGE_KEYS.ROLE)
   removeStorageItem(STORAGE_KEYS.CART)
 }
