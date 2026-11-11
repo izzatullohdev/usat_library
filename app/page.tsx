@@ -331,7 +331,15 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background mt-10">
       {/* Swiperga yuklangan kitoblarni prop orqali uzatamiz */}
-      {books.length === 0 ? (
+      {isLoading ? (
+        <div className="container mx-auto px-4 py-8">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8 max-md:gap-4">
+            {Array.from({ length: itemsPerPage }).map((_, index) => (
+              <BookCardSkeleton key={index} />
+            ))}
+          </div>
+        </div>
+      ) : books.length === 0 ? (
         <div className="text-center py-12">
           <BookOpen className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
           <h1 className="text-[30px] font-bold text-[#21466D]">{t("common.booksNotFound")}</h1>
@@ -354,12 +362,7 @@ export default function HomePage() {
               </h1>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8 max-md:gap-4">
-              {isLoading
-                ? // Loading skeletons ko'rsatish
-                  Array.from({ length: itemsPerPage }).map((_, index) => <BookCardSkeleton key={index} />)
-                : // Haqiqiy kitoblar ko'rsatish
-                  currentBooks.map((book, index) => {
-                    const imageUrl = book.image?.url ? getFullImageUrl(book.image.url) : "/placeholder.svg"
+              {currentBooks.map((book, index) => {
                     const isNew = book.createdAt ? isBookNew(book.createdAt) : false
                     return (
                       <Card
@@ -425,7 +428,7 @@ export default function HomePage() {
                     )
                   })}
             </div>
-            {!isLoading && totalPages > 1 && (
+            {totalPages > 1 && (
               <div className="flex justify-center mt-6">
                 <div className="flex items-center space-x-2">
                   <MagnetButton>
