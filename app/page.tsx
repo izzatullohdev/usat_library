@@ -385,7 +385,7 @@ export default function HomePage() {
                                 }
                                 alt={book.name}
                                 fill
-                                className="object-contain object-center duration-500 group-hover:scale-105"
+                                className="object-cover object-center duration-500 group-hover:scale-105"
                                 loading="lazy"
                               />
                               {isNew && (

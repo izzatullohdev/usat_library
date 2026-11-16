@@ -208,7 +208,7 @@ const duplicatedBooks = lastSixBooks.length > 0 ? [...lastSixBooks] : []
                                   }
                                   alt={book.Book.name}
                                   fill
-                                  className="object-contain object-center duration-500 group-hover:scale-105"
+                                  className="object-cover object-center duration-500 group-hover:scale-105"
                                   loading="lazy"
                                 />
 
